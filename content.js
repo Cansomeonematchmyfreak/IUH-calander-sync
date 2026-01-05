@@ -1,10 +1,8 @@
 (function () {
-  console.log("[IUH] Content script loaded");
+  console.log("[IUH] Content script loaded - Final Version");
 
-  const WEB_APP_URL =
-    "https://script.google.com/macros/s/AKfycbxmP2L302KP5XTm3SMmZ8MNIjkzo4xXH7FD9Tk2SG-MC8LFCyw6hCrUILxQ8q3tb-pz0w/exec";
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxmP2L302KP5XTm3SMmZ8MNIjkzo4xXH7FD9Tk2SG-MC8LFCyw6hCrUILxQ8q3tb-pz0w/exec";
 
-  // ⏰ Giờ bắt đầu các tiết (đã tính nghỉ 10p)
   const TIET_TIME = {
     1: "06:30", 2: "07:20", 3: "08:10", 4: "09:10",
     5: "10:00", 6: "10:50", 7: "12:30", 8: "13:20",
@@ -17,121 +15,135 @@
     return `${y}-${m}-${d}`;
   }
 
-  // ===============================
-  // 🔎 CHECK LỊCH ĐÃ XUẤT HIỆN CHƯA
-  // ===============================
   function hasSchedule() {
-    return [...document.querySelectorAll("*")]
-      .some(el => el.innerText?.startsWith("Tiết:"));
+    return [...document.querySelectorAll("*")].some(el => el.innerText?.startsWith("Tiết:"));
   }
 
-  // =================================
-  // ⏳ ĐỢI DOM LOAD BẰNG OBSERVER
-  // =================================
   function waitForSchedule(callback) {
-    console.log("[IUH] Waiting for schedule…");
-
     if (hasSchedule()) {
-      console.log("[IUH] Schedule already available");
       callback();
       return;
     }
-
     const observer = new MutationObserver(() => {
       if (hasSchedule()) {
         observer.disconnect();
-        console.log("[IUH] Schedule detected");
         callback();
       }
     });
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
-  // ===============================
-  // 🧠 PARSE + SYNC
-  // ===============================
   function sync() {
-  console.log("[IUH] Start parsing (table-based, multi-subject)");
+    console.log("[IUH] Start parsing...");
+    const table = document.querySelector("table");
+    if (!table) return;
 
-  const table = document.querySelector("table");
-  if (!table) {
-    console.warn("[IUH] Không tìm thấy table lịch học");
-    return;
-  }
+    const dateMap = {};
+    table.querySelectorAll("thead th").forEach((th, i) => {
+      const m = th.innerText.match(/\d{2}\/\d{2}\/\d{4}/);
+      if (m) dateMap[i] = parseDateVN(m[0]);
+    });
 
-  // 📅 Map cột → ngày
-  const dateMap = {};
-  table.querySelectorAll("thead th").forEach((th, i) => {
-    const m = th.innerText.match(/\d{2}\/\d{2}\/\d{4}/);
-    if (m) dateMap[i] = parseDateVN(m[0]);
-  });
+    const events = [];
 
-  const events = [];
+    table.querySelectorAll("tbody tr").forEach(row => {
+      row.querySelectorAll("td").forEach((cell, colIndex) => {
+        if (!dateMap[colIndex]) return;
+        if (!cell.innerText.includes("Tiết:")) return;
 
-  table.querySelectorAll("tbody tr").forEach(row => {
-    row.querySelectorAll("td").forEach((cell, colIndex) => {
-      if (!dateMap[colIndex]) return;
-      if (!cell.innerText.includes("Tiết:")) return;
+        // Tách các môn học trong cùng 1 ô (nếu có) dựa vào việc dòng "Tiết:" lặp lại
+        // Tuy nhiên, cách split cũ có thể làm mất context phía trên.
+        // Cách tốt nhất: Split cell thành các dòng, sau đó duyệt từng dòng để tìm cụm.
+        
+        const lines = cell.innerText.split("\n").map(l => l.trim()).filter(Boolean);
+        
+        // Thuật toán: Tìm vị trí các dòng chứa "Tiết:", từ đó suy ngược ra tên môn ở phía trên
+        const tietIndices = [];
+        lines.forEach((line, idx) => {
+           if (line.includes("Tiết:")) tietIndices.push(idx);
+        });
 
-      // 🔥 ĐOẠN FIX NHIỀU MÔN TRONG 1 Ô
-      const blocks = cell.innerText.split(/(?=Tiết:\s*\d+)/);
+        tietIndices.forEach((tietIdx, i) => {
+            // Xác định phạm vi của môn học hiện tại
+            // Bắt đầu: từ sau dòng Tiết của môn trước đó (hoặc dòng 0)
+            // Kết thúc: tại dòng Tiết hiện tại
+            const startIdx = i === 0 ? 0 : tietIndices[i-1] + 1; // +1 để nhảy qua các dòng info của môn trước (Phòng, GV..) - tạm tính tương đối
+            
+            // Để an toàn, ta chỉ lấy các dòng nằm ngay trên dòng Tiết khoảng 3-4 dòng đổ lại
+            // Vì cấu trúc là: Tên -> Mã Lớp -> Mã HP -> Tiết
+            
+            const currentTietLine = lines[tietIdx];
+            
+            // 1. Lấy thông tin Tiết
+            const tietMatch = currentTietLine.match(/Tiết:\s*(\d+)\s*-\s*(\d+)/);
+            if (!tietMatch) return;
+            
+            // 2. Tìm Phòng và GV (Nằm ngay sau dòng Tiết)
+            // Quét từ dòng Tiết trở xuống cho đến khi gặp dòng Tiết tiếp theo hoặc hết cell
+            let room = "Chưa cập nhật";
+            const nextTietIdx = tietIndices[i+1] || lines.length;
+            
+            for (let j = tietIdx + 1; j < nextTietIdx; j++) {
+                if (lines[j].startsWith("Phòng:")) {
+                     room = lines[j].replace("Phòng:", "").trim();
+                     break; 
+                }
+            }
 
-      blocks.forEach(block => {
-        if (!block.includes("Tiết:")) return;
+            // 3. XỬ LÝ TÊN MÔN (QUAN TRỌNG NHẤT)
+            // Lấy các dòng phía trên dòng Tiết
+            const candidates = [];
+            // Quét ngược từ dòng ngay trên "Tiết" lên trên
+            for (let k = tietIdx - 1; k >= 0; k--) {
+                const line = lines[k];
+                // Nếu gặp dòng Tiết của môn trước hoặc gặp chữ "Phòng/GV" của môn trước thì dừng
+                if (line.includes("Tiết:") || line.startsWith("Phòng:") || line.startsWith("GV:")) break;
+                
+                candidates.unshift(line); // Đẩy vào đầu mảng để giữ đúng thứ tự xuôi
+            }
 
-        const lines = block
-          .split("\n")
-          .map(l => l.trim())
-          .filter(Boolean);
+            // Lọc Candidates: Loại bỏ Mã lớp, Mã HP, Mã số lạ
+            const subjectParts = candidates.filter(line => {
+                const isClassCode = line.startsWith("DH") || line.includes(" - "); // DHHTTT...
+                const isCourseCode = /^\d+$/.test(line); // 4203...
+                return !isClassCode && !isCourseCode;
+            });
 
-        const subject = lines.find(
-          l =>
-            l.length > 5 &&
-            !l.startsWith("DH") &&
-            !l.startsWith("Tiết:")
-        );
+            const subjectName = subjectParts.join(" ");
 
-        const tietMatch = block.match(/Tiết:\s*(\d+)\s*-\s*(\d+)/);
-        const roomMatch = block.match(/Phòng:\s*(.+)/);
+            if (!subjectName) return;
 
-        if (!subject || !tietMatch) return;
+            const startTiet = Number(tietMatch[1]);
+            const endTiet = Number(tietMatch[2]) + 1; // Kết thúc tiết là đầu giờ tiết sau
 
-        const startTiet = Number(tietMatch[1]);
-        const endTiet = Number(tietMatch[2]) + 1;
-
-        if (!TIET_TIME[startTiet] || !TIET_TIME[endTiet]) return;
-
-        events.push({
-          subject: `[IUH] ${subject}`,
-          start: `${dateMap[colIndex]}T${TIET_TIME[startTiet]}:00`,
-          end: `${dateMap[colIndex]}T${TIET_TIME[endTiet]}:00`,
-          room: roomMatch ? roomMatch[1] : ""
+            if (TIET_TIME[startTiet] && TIET_TIME[endTiet]) {
+                events.push({
+                    subject: `[IUH] ${subjectName}`,
+                    start: `${dateMap[colIndex]}T${TIET_TIME[startTiet]}:00+07:00`,
+                    end: `${dateMap[colIndex]}T${TIET_TIME[endTiet]}:00+07:00`,
+                    room: room
+                });
+            }
         });
       });
     });
-  });
 
-  if (!events.length) {
-    console.warn("[IUH] Parse xong nhưng không có event");
-    return;
+    if (!events.length) {
+      console.warn("[IUH] No events found");
+      return;
+    }
+
+    console.table(events);
+
+    fetch(WEB_APP_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(events)
+    })
+      .then(() => console.log("[IUH] Sync request sent!"))
+      .catch(console.error);
   }
 
-  console.table(events);
-
-  fetch(WEB_APP_URL, {
-    method: "POST",
-    body: JSON.stringify(events)
-  })
-    .then(r => r.text())
-    .then(t => console.log("[IUH] Sync OK:", t))
-    .catch(console.error);
-}
-
-
-  // 🚀 START
   waitForSchedule(sync);
 })();
