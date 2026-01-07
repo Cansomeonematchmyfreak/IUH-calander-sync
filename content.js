@@ -1,8 +1,8 @@
 (function () {
-  console.log("[IUH] Content script loaded - Final Version");
+  console.log("[IUH] Content script loaded - Fixed Overlap Version");
 
-  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxmP2L302KP5XTm3SMmZ8MNIjkzo4xXH7FD9Tk2SG-MC8LFCyw6hCrUILxQ8q3tb-pz0w/exec";
-
+  // --- CẤU HÌNH ---
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwNfS00wZ54cUXKhoIOtEi-oRStegXW50eSRb5j9zkrhmJAkooHwE8AfI_tMzd03wtBmA/exec"; // <--- Nhớ điền URL của bạn vào đây
   const TIET_TIME = {
     1: "06:30", 2: "07:20", 3: "08:10", 4: "09:10",
     5: "10:00", 6: "10:50", 7: "12:30", 8: "13:20",
@@ -10,140 +10,124 @@
     13: "18:00", 14: "18:50", 15: "19:50", 16: "20:40"
   };
 
-  function parseDateVN(str) {
-    const [d, m, y] = str.split("/");
-    return `${y}-${m}-${d}`;
-  }
-
-  function hasSchedule() {
-    return [...document.querySelectorAll("*")].some(el => el.innerText?.startsWith("Tiết:"));
-  }
-
-  function waitForSchedule(callback) {
-    if (hasSchedule()) {
-      callback();
+  function sync() {
+    const table = document.querySelector("table");
+    if (!table) {
+      alert("Không tìm thấy bảng lịch học!");
       return;
     }
-    const observer = new MutationObserver(() => {
-      if (hasSchedule()) {
-        observer.disconnect();
-        callback();
+
+    // 1. XÁC ĐỊNH PHẠM VI TUẦN (Để gửi lên Server xóa lịch cũ)
+    const allDates = [];
+    const dateMap = {}; // Map colIndex -> Date String (yyyy-mm-dd)
+
+    table.querySelectorAll("thead th").forEach((th, i) => {
+      // Regex bắt ngày dd/mm/yyyy
+      const m = th.innerText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (m) {
+        // Chuyển thành yyyy-mm-dd để sort và gửi đi
+        const isoDate = `${m[3]}-${m[2]}-${m[1]}`;
+        dateMap[i] = isoDate;
+        allDates.push(isoDate);
       }
     });
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
 
-  function sync() {
-    console.log("[IUH] Start parsing...");
-    const table = document.querySelector("table");
-    if (!table) return;
+    if (allDates.length === 0) {
+      alert("Không xác định được ngày tháng trên bảng!");
+      return;
+    }
 
-    const dateMap = {};
-    table.querySelectorAll("thead th").forEach((th, i) => {
-      const m = th.innerText.match(/\d{2}\/\d{2}\/\d{4}/);
-      if (m) dateMap[i] = parseDateVN(m[0]);
-    });
+    // Sắp xếp để lấy ngày đầu và ngày cuối chính xác
+    allDates.sort();
+    const weekStart = allDates[0]; 
+    const weekEnd = allDates[allDates.length - 1];
 
+    // 2. QUÉT DỮ LIỆU SỰ KIỆN (Giữ nguyên logic tách dòng thông minh)
     const events = [];
+    table.querySelectorAll("tbody tr td").forEach((cell, colIndex) => {
+      const date = dateMap[cell.cellIndex];
+      if (!date || !cell.innerText.includes("Tiết:")) return;
 
-    table.querySelectorAll("tbody tr").forEach(row => {
-      row.querySelectorAll("td").forEach((cell, colIndex) => {
-        if (!dateMap[colIndex]) return;
-        if (!cell.innerText.includes("Tiết:")) return;
+      const lines = cell.innerText.split("\n").map(l => l.trim()).filter(Boolean);
+      
+      // Tìm vị trí các dòng chứa "Tiết:"
+      const tietIndices = lines.reduce((acc, line, idx) => {
+        if (line.includes("Tiết:")) acc.push(idx);
+        return acc;
+      }, []);
 
-        // Tách các môn học trong cùng 1 ô (nếu có) dựa vào việc dòng "Tiết:" lặp lại
-        // Tuy nhiên, cách split cũ có thể làm mất context phía trên.
-        // Cách tốt nhất: Split cell thành các dòng, sau đó duyệt từng dòng để tìm cụm.
+      tietIndices.forEach((tietIdx, i) => {
+        const nextTietIdx = tietIndices[i + 1] || lines.length;
+        const prevTietIdx = i === 0 ? -1 : tietIndices[i - 1];
+
+        const tietMatch = lines[tietIdx].match(/Tiết:\s*(\d+)\s*-\s*(\d+)/);
+        if (!tietMatch) return;
+
+        // Tìm Phòng & GV
+        let room = "Chưa cập nhật";
+        let teacher = "Chưa cập nhật";
         
-        const lines = cell.innerText.split("\n").map(l => l.trim()).filter(Boolean);
+        for (let j = tietIdx + 1; j < nextTietIdx; j++) {
+          if (lines[j].startsWith("Phòng:")) room = lines[j].replace("Phòng:", "").trim();
+          // Cập nhật Regex tìm GV linh hoạt hơn
+          if (lines[j].match(/^(GV|Giảng viên):/i)) {
+             teacher = lines[j].replace(/^(GV|Giảng viên):/i, "").trim();
+          }
+        }
+
+        // Tìm Tên môn (Quét ngược lên)
+        let subjectParts = [];
+        for (let k = tietIdx - 1; k > prevTietIdx; k--) {
+          const line = lines[k];
+          // Loại bỏ Mã HP (số), Mã Lớp (DH..), Mã nhóm (tổ..)
+          if (!/^\d+$/.test(line) && !line.startsWith("DH") && !line.includes(" - ")) {
+            subjectParts.unshift(line);
+          }
+        }
+        const subjectName = subjectParts.join(" ");
+
+        // Xác định loại (Màu sắc)
+        let type = "ly-thuyet";
+        const bg = window.getComputedStyle(cell).backgroundColor; // Check màu nền ô
+        const divBg = cell.querySelector("div") ? window.getComputedStyle(cell.querySelector("div")).backgroundColor : "";
         
-        // Thuật toán: Tìm vị trí các dòng chứa "Tiết:", từ đó suy ngược ra tên môn ở phía trên
-        const tietIndices = [];
-        lines.forEach((line, idx) => {
-           if (line.includes("Tiết:")) tietIndices.push(idx);
-        });
+        if (bg.includes("144, 238, 144") || divBg.includes("144, 238, 144")) type = "thuc-hanh"; // Xanh lá
+        if (bg.includes("255, 255, 0") || divBg.includes("255, 255, 0")) type = "thi"; // Vàng
 
-        tietIndices.forEach((tietIdx, i) => {
-            // Xác định phạm vi của môn học hiện tại
-            // Bắt đầu: từ sau dòng Tiết của môn trước đó (hoặc dòng 0)
-            // Kết thúc: tại dòng Tiết hiện tại
-            const startIdx = i === 0 ? 0 : tietIndices[i-1] + 1; // +1 để nhảy qua các dòng info của môn trước (Phòng, GV..) - tạm tính tương đối
-            
-            // Để an toàn, ta chỉ lấy các dòng nằm ngay trên dòng Tiết khoảng 3-4 dòng đổ lại
-            // Vì cấu trúc là: Tên -> Mã Lớp -> Mã HP -> Tiết
-            
-            const currentTietLine = lines[tietIdx];
-            
-            // 1. Lấy thông tin Tiết
-            const tietMatch = currentTietLine.match(/Tiết:\s*(\d+)\s*-\s*(\d+)/);
-            if (!tietMatch) return;
-            
-            // 2. Tìm Phòng và GV (Nằm ngay sau dòng Tiết)
-            // Quét từ dòng Tiết trở xuống cho đến khi gặp dòng Tiết tiếp theo hoặc hết cell
-            let room = "Chưa cập nhật";
-            const nextTietIdx = tietIndices[i+1] || lines.length;
-            
-            for (let j = tietIdx + 1; j < nextTietIdx; j++) {
-                if (lines[j].startsWith("Phòng:")) {
-                     room = lines[j].replace("Phòng:", "").trim();
-                     break; 
-                }
-            }
-
-            // 3. XỬ LÝ TÊN MÔN (QUAN TRỌNG NHẤT)
-            // Lấy các dòng phía trên dòng Tiết
-            const candidates = [];
-            // Quét ngược từ dòng ngay trên "Tiết" lên trên
-            for (let k = tietIdx - 1; k >= 0; k--) {
-                const line = lines[k];
-                // Nếu gặp dòng Tiết của môn trước hoặc gặp chữ "Phòng/GV" của môn trước thì dừng
-                if (line.includes("Tiết:") || line.startsWith("Phòng:") || line.startsWith("GV:")) break;
-                
-                candidates.unshift(line); // Đẩy vào đầu mảng để giữ đúng thứ tự xuôi
-            }
-
-            // Lọc Candidates: Loại bỏ Mã lớp, Mã HP, Mã số lạ
-            const subjectParts = candidates.filter(line => {
-                const isClassCode = line.startsWith("DH") || line.includes(" - "); // DHHTTT...
-                const isCourseCode = /^\d+$/.test(line); // 4203...
-                return !isClassCode && !isCourseCode;
-            });
-
-            const subjectName = subjectParts.join(" ");
-
-            if (!subjectName) return;
-
-            const startTiet = Number(tietMatch[1]);
-            const endTiet = Number(tietMatch[2]) + 1; // Kết thúc tiết là đầu giờ tiết sau
-
-            if (TIET_TIME[startTiet] && TIET_TIME[endTiet]) {
-                events.push({
-                    subject: `[IUH] ${subjectName}`,
-                    start: `${dateMap[colIndex]}T${TIET_TIME[startTiet]}:00+07:00`,
-                    end: `${dateMap[colIndex]}T${TIET_TIME[endTiet]}:00+07:00`,
-                    room: room
-                });
-            }
+        events.push({
+          subject: `[IUH] ${subjectName}`,
+          start: `${date}T${TIET_TIME[tietMatch[1]]}:00+07:00`,
+          end: `${date}T${TIET_TIME[Number(tietMatch[2]) + 1]}:00+07:00`, // Kết thúc tiết là đầu giờ tiết sau
+          room: room,
+          teacher: teacher,
+          type: type
         });
       });
     });
 
-    if (!events.length) {
-      console.warn("[IUH] No events found");
-      return;
-    }
+    console.log(`[IUH] Found ${events.length} events from ${weekStart} to ${weekEnd}`);
 
-    console.table(events);
+    // 3. GỬI DỮ LIỆU (Bao gồm cả range tuần)
+    const payload = {
+      weekStart: weekStart,
+      weekEnd: weekEnd,
+      events: events
+    };
 
     fetch(WEB_APP_URL, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(events)
+      body: JSON.stringify(payload)
     })
-      .then(() => console.log("[IUH] Sync request sent!"))
-      .catch(console.error);
+    .then(() => {
+        alert(`Đã gửi yêu cầu đồng bộ!\nTuần: ${weekStart} đến ${weekEnd}\nSố môn: ${events.length}`);
+    })
+    .catch(err => alert("Lỗi gửi dữ liệu: " + err));
   }
 
-  waitForSchedule(sync);
+  // Chờ nút sync hoặc chạy tự động (tuỳ bạn setup)
+  // Ở đây mình chạy sau 3s để đảm bảo trang load xong
+  setTimeout(sync, 3000);
+
 })();
