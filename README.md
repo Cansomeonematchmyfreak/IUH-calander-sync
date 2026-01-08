@@ -1,4 +1,5 @@
 App script, lưu ý chọn triển khai là Ứng dụng web, Thực thi bằng tên: Tôi, Người có quyển truy cập: Bất kì ai.
+Khi xong, người dùng sẽ thấy ở góc dưới bên trái web sinh viên là UI của extention, vui lòng truy cập chức năng chỉ khi vào https://sv.iuh.edu.vn/lich-theo-tuan.html (Lịch theo tuần)
 
 
 
