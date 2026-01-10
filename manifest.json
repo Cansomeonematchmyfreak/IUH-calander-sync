@@ -1,10 +1,15 @@
 {
   "manifest_version": 3,
   "name": "IUH Calendar Sync",
-  "version": "1.0",
-  "description": "Sync IUH schedule to Google Calendar",
-  "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["https://sv.iuh.edu.vn/*"],
+  "version": "2.0",
+  "permissions": [
+    "activeTab", 
+    "scripting", 
+    "storage"  
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
   "content_scripts": [
     {
       "matches": ["https://sv.iuh.edu.vn/*"],
