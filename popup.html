@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { width: 320px; padding: 15px; font-family: 'Segoe UI', sans-serif; }
+    h3 { color: #0f9d58; margin-top: 0; }
+    .note { font-size: 12px; color: #666; margin-bottom: 10px; }
+    input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    button { 
+      width: 100%; padding: 10px; margin-top: 10px; border: none;
+      background: #0f9d58; color: white; font-weight: bold;
+      border-radius: 4px; cursor: pointer; 
+    }
+    button:hover { background: #0b8043; }
+    #status { font-size: 12px; color: #d93025; margin-top: 8px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h3>Cấu hình IUH Sync</h3>
+  <p class="note">Nhập URL Apps Script cá nhân của bạn để bắt đầu đồng bộ.</p>
+  <input type="text" id="scriptUrl" placeholder="https://script.google.com/.../exec">
+  <button id="saveBtn">Lưu Cấu Hình</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
