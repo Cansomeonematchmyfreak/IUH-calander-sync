@@ -40,7 +40,7 @@ Google Calendar
 
 ## 🛠 Cài đặt & Triển khai
 
-### 1️⃣ Google Apps Script
+### 1️⃣ Google Apps Script (xem code ở cuối trang)
 1. Tạo một project mới tại **Google Apps Script**
 2. Dán code xử lý `doPost(e)` vào project
 3. Chọn **Deploy → Ứng dụng web**
@@ -58,6 +58,7 @@ Google Calendar
 
 - - Khi vào trang **Lịch theo tuần**, UI của extension sẽ xuất hiện ở  
 👉 **góc dưới bên phải** màn hình
+
 
 ---
 
@@ -142,5 +143,89 @@ Google Calendar
 ## 📄 Disclaimer
 Project được thực hiện với mục đích **học tập và sử dụng cá nhân**,  
 không phải sản phẩm chính thức của Trường Đại học Công nghiệp TP.HCM (IUH).
+
+
+---
+
+## 📜 Google Apps Script Code:
+
+function doPost(e) {
+  if (!e || !e.postData) {
+    return ContentService.createTextOutput("No data");
+  }
+
+  try {
+    const data = JSON.parse(e.postData.contents);
+
+    if (!data.weekStart || !data.weekEnd) {
+      return ContentService.createTextOutput("ERROR: Missing date range.");
+    }
+
+    const calendar = CalendarApp.getDefaultCalendar();
+
+    // Thời gian xoá lịch cũ
+    const deleteStart = new Date(data.weekStart + "T00:00:00+07:00");
+    const deleteEnd   = new Date(data.weekEnd   + "T23:59:59+07:00");
+
+    // 1. XOÁ CÁC SỰ KIỆN IUH CŨ
+    const oldEvents = calendar.getEvents(deleteStart, deleteEnd);
+    const eventsToDelete = oldEvents.filter(event =>
+      event.getTitle().startsWith("[IUH]") ||
+      event.getDescription().includes("IUH Calendar Sync")
+    );
+
+    eventsToDelete.forEach(event => event.deleteEvent());
+
+    // 2. THÊM SỰ KIỆN MỚI
+    const events = data.events || [];
+
+    const colorMap = {
+      "thuc-hanh": CalendarApp.EventColor.GREEN,
+      "ly-thuyet": CalendarApp.EventColor.GRAY,
+      "thi": CalendarApp.EventColor.YELLOW,
+      "truc-tuyen": CalendarApp.EventColor.CYAN,
+      "tam-ngung": CalendarApp.EventColor.RED
+    };
+
+    events.forEach(ev => {
+      try {
+        let description = `GV: ${ev.teacher}`;
+
+        if (ev.group) {
+          description += `\n👥 NHÓM THI: ${ev.group}`;
+        }
+
+        if (ev.note) {
+          description += `\n\n📌 GHI CHÚ / CODE:\n${ev.note}`;
+        }
+
+        description += `\n\n---\nIUH Calendar Sync`;
+
+        const newEvent = calendar.createEvent(
+          ev.subject,
+          new Date(ev.start),
+          new Date(ev.end),
+          {
+            location: ev.room,
+            description: description
+          }
+        );
+
+        const color = colorMap[ev.type] || CalendarApp.EventColor.PALE_BLUE;
+        newEvent.setColor(color);
+
+      } catch (innerErr) {
+        console.error("Error creating event:", innerErr);
+      }
+    });
+
+    return ContentService.createTextOutput(
+      `SYNC SUCCESS\nDeleted: ${eventsToDelete.length}\nAdded: ${events.length}`
+    );
+
+  } catch (err) {
+    return ContentService.createTextOutput("CRITICAL ERROR: " + err.toString());
+  }
+}
 
 
