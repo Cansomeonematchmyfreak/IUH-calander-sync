@@ -1,9 +1,8 @@
-// content.js - Version 3.2 (Fix lỗi "room is not defined")
+// content.js - Version 3.3 (Fix lỗi đồng bộ ảo & CORS)
 (function () {
-  console.log("[IUH Sync] Content Script Loaded - Version 3.2");
+  console.log("[IUH Sync] Content Script Loaded - Version 3.3");
 
   // --- CẤU HÌNH THỜI GIAN TIẾT HỌC ---
-  // Đã thêm tiết 17, 18 để tránh lỗi tính giờ ra về cho ca thi tối
   const TIET_TIME = {
     1: "06:30", 2: "07:20", 3: "08:10", 4: "09:10", 5: "10:00", 6: "10:50",
     7: "12:30", 8: "13:20", 9: "14:10", 10: "15:10", 11: "16:00", 12: "16:50",
@@ -16,7 +15,6 @@
     if (document.getElementById("iuh-sync-btn")) return;
     const btn = document.createElement("button");
     btn.id = "iuh-sync-btn";
-    btn.type = "button"; // Tránh submit form mặc định của trang IUH khi bấm nút
     btn.innerText = "📅 Đồng bộ sang Google Calendar";
     btn.style.cssText = `
       position: fixed; bottom: 20px; right: 20px; z-index: 9999;
@@ -28,11 +26,7 @@
     btn.onmouseover = () => btn.style.transform = "scale(1.05)";
     btn.onmouseout = () => btn.style.transform = "scale(1)";
     
-    // Sử dụng addEventListener để tránh lỗi CSP
-    btn.addEventListener("click", (event) => {
-      event.preventDefault();
-      startMultiWeekSync();
-    });
+    btn.addEventListener("click", startMultiWeekSync);
     
     document.body.appendChild(btn);
   }
@@ -48,70 +42,6 @@
         }
       }, 100);
     });
-  }
-
-  function extractPostBackPayload(nextBtn) {
-    const candidates = [
-      nextBtn.getAttribute("onclick") || "",
-      nextBtn.getAttribute("href") || ""
-    ];
-
-    for (const source of candidates) {
-      const doPostBackMatch = source.match(/__doPostBack\(['"]([^'\"]*)['"]\s*,\s*['"]([^'\"]*)['"]\)/);
-      if (doPostBackMatch) {
-        return { eventTarget: doPostBackMatch[1], eventArgument: doPostBackMatch[2] };
-      }
-
-      const webFormMatch = source.match(/WebForm_PostBackOptions\(([^)]*)\)/);
-      if (webFormMatch) {
-        const args = webFormMatch[1].match(/['"][^'\"]*['"]/g) || [];
-        if (args.length >= 2) {
-          return {
-            eventTarget: args[0].slice(1, -1),
-            eventArgument: args[1].slice(1, -1)
-          };
-        }
-      }
-    }
-
-    if (nextBtn.name) {
-      return { eventTarget: nextBtn.name, eventArgument: "" };
-    }
-
-    return null;
-  }
-
-  function triggerNextWeek(nextBtn) {
-    if (!nextBtn) return false;
-
-    const payload = extractPostBackPayload(nextBtn);
-    const form = nextBtn.closest("form") || document.forms[0];
-
-    if (payload && form) {
-      const eventTargetInput = document.getElementById("__EVENTTARGET");
-      const eventArgumentInput = document.getElementById("__EVENTARGUMENT");
-
-      if (eventTargetInput && eventArgumentInput) {
-        eventTargetInput.value = payload.eventTarget;
-        eventArgumentInput.value = payload.eventArgument;
-        form.submit();
-        return true;
-      }
-    }
-
-    if (payload && typeof window.__doPostBack === "function") {
-      window.__doPostBack(payload.eventTarget, payload.eventArgument);
-      return true;
-    }
-
-    // Tránh click fallback vì các href kiểu "javascript:..." sẽ bị CSP chặn.
-    // Chỉ submit form khi không còn cách postback rõ ràng nào khác.
-    if (form) {
-      form.submit();
-      return true;
-    }
-
-    return false;
   }
 
   // --- 3. QUÉT DỮ LIỆU ---
@@ -131,58 +61,47 @@
       if (!date) return;
 
       cell.querySelectorAll(".content").forEach(div => {
-        // --- BƯỚC 1: LẤY THÔNG TIN CƠ BẢN (KHAI BÁO BIẾN TRƯỚC) ---
         const text = div.innerText;
         const style = div.getAttribute("style") || "";
         const dataBg = div.getAttribute("data-bg"); 
         
-        // Lấy tên môn
         const subjectName = div.querySelector("a")?.innerText.trim() || "Môn học";
 
-        // Lấy Tiết học (Quan trọng)
         const tietMatch = text.match(/Tiết:\s*(\d+)\s*-\s*(\d+)/);
-        if (!tietMatch) return; // Không có tiết thì bỏ qua ngay
+        if (!tietMatch) return; 
 
-        // Lấy Phòng (Khai báo biến room ngay tại đây để tránh lỗi not defined)
         const roomMatch = text.match(/Phòng:\s*(.+?)(\n|$)/);
         const room = roomMatch ? roomMatch[1].trim() : "Không rõ";
 
-        // Lấy Giảng viên
         const gvMatch = text.match(/GV:\s*(.+?)(\n|$)/);
         const teacher = gvMatch ? gvMatch[1].trim() : "CB Coi Thi / Chưa cập nhật";
 
-        // Lấy Nhóm thi (nếu có)
         let group = "";
         const groupSpan = div.querySelector('span[lang="lichtheotuan-nhom"]');
         if (groupSpan && groupSpan.parentElement) {
             group = groupSpan.parentElement.innerText.replace("Nhóm:", "").trim().replace(":", "").trim();
         }
 
-        // Lấy Ghi chú
         let note = "";
         const noteMatch = text.match(/Ghi chú:\s*([\s\S]*?)(\n\n|$)/);
         if (noteMatch) note = noteMatch[1].replace(/\n/g, " ").trim();
 
-        // --- BƯỚC 2: TÍNH TOÁN THỜI GIAN ---
         const startTiet = parseInt(tietMatch[1]);
         const endTiet = parseInt(tietMatch[2]);
         const startTime = TIET_TIME[startTiet];
         const endTime = TIET_TIME[endTiet + 1]; 
 
-        // Kiểm tra lỗi tính giờ
         if (!startTime || !endTime) {
             console.warn(`⚠️ Bỏ qua môn: ${subjectName} do không tính được giờ (Tiết ${startTiet}-${endTiet})`);
             return; 
         }
 
-        // --- BƯỚC 3: PHÂN LOẠI MÀU SẮC (SỬ DỤNG BIẾN ROOM ĐÃ KHAI BÁO) ---
-        let type = "ly-thuyet"; // Mặc định
+        let type = "ly-thuyet"; 
         
         if (div.querySelector(".tamngung") || text.includes("Tạm ngưng")) {
           type = "tam-ngung";
         } 
         else if (dataBg === "208412" || group !== "" || text.includes("Lịch thi")) { 
-          // Ưu tiên 1: Mã màu vàng của IUH (208412) hoặc có thông tin Nhóm -> LÀ LỊCH THI
           type = "thi"; 
         } 
         else if (style.includes("#92d6ff") || text.includes("Trực tuyến") || room.toLowerCase().includes("zoom")) {
@@ -231,10 +150,7 @@
         if (i < parseInt(numWeeks) - 1) {
           const nextBtn = document.getElementById("btn_Tiep");
           if (!nextBtn) break;
-          const movedToNextWeek = triggerNextWeek(nextBtn);
-          if (!movedToNextWeek) {
-            throw new Error("Không thể chuyển sang tuần tiếp theo do trang chặn postback.");
-          }
+          nextBtn.click();
           await waitForNextWeek(currentDate);
         }
       }
@@ -249,20 +165,29 @@
         events: allEvents
       };
 
-      btn.innerText = "🚀 Đang gửi dữ liệu...";
+      btn.innerText = "🚀 Đang gửi dữ liệu lên Google Calendar...";
       
+      // ĐÃ SỬA LỖI TẠI ĐÂY: Bỏ mode no-cors và dùng text/plain để né preflight OPTIONS
       const response = await fetch(webAppUrl, {
         method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload)
       });
 
-      alert(`✅ Đã gửi lệnh đồng bộ ${allEvents.length} sự kiện!\nHãy kiểm tra Google Calendar.`);
+      // Đọc trực tiếp phản hồi từ Apps Script
+      const resultText = await response.text();
+      
+      // Kiểm tra nếu có chữ ERROR từ file server trả về
+      if (resultText.includes("ERROR") || resultText.includes("No data")) {
+        throw new Error("Lỗi từ máy chủ Google: " + resultText);
+      }
+
+      // Thông báo thành công với số liệu thực tế
+      alert(`✅ Hoàn tất!\nKết quả từ Google Calendar: ${resultText}`);
 
     } catch (err) {
       console.error(err);
-      alert("Lỗi: " + err.message);
+      alert("❌ Lỗi đồng bộ:\n" + err.message + "\n\n(Hãy chắc chắn bạn đã Deploy đúng Web App URL mới nhất!)");
     } finally {
       btn.innerText = originalText;
     }
