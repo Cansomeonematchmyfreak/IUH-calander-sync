@@ -16,6 +16,7 @@
     if (document.getElementById("iuh-sync-btn")) return;
     const btn = document.createElement("button");
     btn.id = "iuh-sync-btn";
+    btn.type = "button"; // Tránh submit form mặc định của trang IUH khi bấm nút
     btn.innerText = "📅 Đồng bộ sang Google Calendar";
     btn.style.cssText = `
       position: fixed; bottom: 20px; right: 20px; z-index: 9999;
@@ -28,7 +29,10 @@
     btn.onmouseout = () => btn.style.transform = "scale(1)";
     
     // Sử dụng addEventListener để tránh lỗi CSP
-    btn.addEventListener("click", startMultiWeekSync);
+    btn.addEventListener("click", (event) => {
+      event.preventDefault();
+      startMultiWeekSync();
+    });
     
     document.body.appendChild(btn);
   }
