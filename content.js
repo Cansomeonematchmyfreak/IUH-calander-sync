@@ -46,6 +46,34 @@
     });
   }
 
+  function triggerNextWeek(nextBtn) {
+    if (!nextBtn) return false;
+
+    const postBackSource = nextBtn.getAttribute("onclick") || nextBtn.getAttribute("href") || "";
+    const postBackMatch = postBackSource.match(/__doPostBack\('([^']*)','([^']*)'\)/);
+
+    if (postBackMatch) {
+      const eventTargetInput = document.getElementById("__EVENTTARGET");
+      const eventArgumentInput = document.getElementById("__EVENTARGUMENT");
+      const form = nextBtn.closest("form") || document.forms[0];
+
+      if (eventTargetInput && eventArgumentInput && form) {
+        eventTargetInput.value = postBackMatch[1];
+        eventArgumentInput.value = postBackMatch[2];
+        form.submit();
+        return true;
+      }
+    }
+
+    nextBtn.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    }));
+
+    return true;
+  }
+
   // --- 3. QUÉT DỮ LIỆU ---
   function scrapeCurrentWeek() {
     const table = document.querySelector("table.fl-table");
@@ -163,7 +191,7 @@
         if (i < parseInt(numWeeks) - 1) {
           const nextBtn = document.getElementById("btn_Tiep");
           if (!nextBtn) break;
-          nextBtn.click();
+          triggerNextWeek(nextBtn);
           await waitForNextWeek(currentDate);
         }
       }
