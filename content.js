@@ -46,32 +46,68 @@
     });
   }
 
+  function extractPostBackPayload(nextBtn) {
+    const candidates = [
+      nextBtn.getAttribute("onclick") || "",
+      nextBtn.getAttribute("href") || ""
+    ];
+
+    for (const source of candidates) {
+      const doPostBackMatch = source.match(/__doPostBack\(['"]([^'\"]*)['"]\s*,\s*['"]([^'\"]*)['"]\)/);
+      if (doPostBackMatch) {
+        return { eventTarget: doPostBackMatch[1], eventArgument: doPostBackMatch[2] };
+      }
+
+      const webFormMatch = source.match(/WebForm_PostBackOptions\(([^)]*)\)/);
+      if (webFormMatch) {
+        const args = webFormMatch[1].match(/['"][^'\"]*['"]/g) || [];
+        if (args.length >= 2) {
+          return {
+            eventTarget: args[0].slice(1, -1),
+            eventArgument: args[1].slice(1, -1)
+          };
+        }
+      }
+    }
+
+    if (nextBtn.name) {
+      return { eventTarget: nextBtn.name, eventArgument: "" };
+    }
+
+    return null;
+  }
+
   function triggerNextWeek(nextBtn) {
     if (!nextBtn) return false;
 
-    const postBackSource = nextBtn.getAttribute("onclick") || nextBtn.getAttribute("href") || "";
-    const postBackMatch = postBackSource.match(/__doPostBack\('([^']*)','([^']*)'\)/);
+    const payload = extractPostBackPayload(nextBtn);
+    const form = nextBtn.closest("form") || document.forms[0];
 
-    if (postBackMatch) {
+    if (payload && form) {
       const eventTargetInput = document.getElementById("__EVENTTARGET");
       const eventArgumentInput = document.getElementById("__EVENTARGUMENT");
-      const form = nextBtn.closest("form") || document.forms[0];
 
-      if (eventTargetInput && eventArgumentInput && form) {
-        eventTargetInput.value = postBackMatch[1];
-        eventArgumentInput.value = postBackMatch[2];
+      if (eventTargetInput && eventArgumentInput) {
+        eventTargetInput.value = payload.eventTarget;
+        eventArgumentInput.value = payload.eventArgument;
         form.submit();
         return true;
       }
     }
 
-    nextBtn.dispatchEvent(new MouseEvent("click", {
-      bubbles: true,
-      cancelable: true,
-      view: window
-    }));
+    if (payload && typeof window.__doPostBack === "function") {
+      window.__doPostBack(payload.eventTarget, payload.eventArgument);
+      return true;
+    }
 
-    return true;
+    // Tránh click fallback vì các href kiểu "javascript:..." sẽ bị CSP chặn.
+    // Chỉ submit form khi không còn cách postback rõ ràng nào khác.
+    if (form) {
+      form.submit();
+      return true;
+    }
+
+    return false;
   }
 
   // --- 3. QUÉT DỮ LIỆU ---
@@ -191,7 +227,10 @@
         if (i < parseInt(numWeeks) - 1) {
           const nextBtn = document.getElementById("btn_Tiep");
           if (!nextBtn) break;
-          triggerNextWeek(nextBtn);
+          const movedToNextWeek = triggerNextWeek(nextBtn);
+          if (!movedToNextWeek) {
+            throw new Error("Không thể chuyển sang tuần tiếp theo do trang chặn postback.");
+          }
           await waitForNextWeek(currentDate);
         }
       }
