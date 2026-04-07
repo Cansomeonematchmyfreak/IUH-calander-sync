@@ -1,16 +1,15 @@
-// content.js - Version 3.3 (Fix lỗi đồng bộ ảo & CORS)
 (function () {
-  console.log("[IUH Sync] Content Script Loaded - Version 3.3");
+  console.log("[IUH Sync] Content Script Loaded - Version 4.0");
 
-  // --- CẤU HÌNH THỜI GIAN TIẾT HỌC ---
+  // ==========================================
+  // PHẦN 1: LOGIC ĐỒNG BỘ LỊCH (Giữ nguyên của bạn)
+  // ==========================================
   const TIET_TIME = {
     1: "06:30", 2: "07:20", 3: "08:10", 4: "09:10", 5: "10:00", 6: "10:50",
     7: "12:30", 8: "13:20", 9: "14:10", 10: "15:10", 11: "16:00", 12: "16:50",
-    13: "18:00", 14: "18:50", 15: "19:50", 16: "20:40",
-    17: "21:30", 18: "22:20" 
+    13: "18:00", 14: "18:50", 15: "19:50", 16: "20:40", 17: "21:30", 18: "22:20" 
   };
 
-  // --- 1. TẠO GIAO DIỆN NÚT BẤM ---
   function createSyncButton() {
     if (document.getElementById("iuh-sync-btn")) return;
     const btn = document.createElement("button");
@@ -25,13 +24,10 @@
     `;
     btn.onmouseover = () => btn.style.transform = "scale(1.05)";
     btn.onmouseout = () => btn.style.transform = "scale(1)";
-    
     btn.addEventListener("click", startMultiWeekSync);
-    
     document.body.appendChild(btn);
   }
 
-  // --- 2. LOGIC ĐỢI TRANG TẢI ---
   function waitForNextWeek(oldDate) {
     return new Promise((resolve) => {
       const check = setInterval(() => {
@@ -44,11 +40,9 @@
     });
   }
 
-  // --- 3. QUÉT DỮ LIỆU ---
   function scrapeCurrentWeek() {
     const table = document.querySelector("table.fl-table");
     if (!table) return [];
-
     const dateMap = {};
     table.querySelectorAll("thead th").forEach((th, idx) => {
       const m = th.innerText.match(/(\d{2})\/(\d{2})\/(\d{4})/);
@@ -59,23 +53,19 @@
     table.querySelectorAll("tbody tr td").forEach((cell) => {
       const date = dateMap[cell.cellIndex];
       if (!date) return;
-
       cell.querySelectorAll(".content").forEach(div => {
         const text = div.innerText;
         const style = div.getAttribute("style") || "";
         const dataBg = div.getAttribute("data-bg"); 
-        
         const subjectName = div.querySelector("a")?.innerText.trim() || "Môn học";
-
         const tietMatch = text.match(/Tiết:\s*(\d+)\s*-\s*(\d+)/);
         if (!tietMatch) return; 
 
         const roomMatch = text.match(/Phòng:\s*(.+?)(\n|$)/);
         const room = roomMatch ? roomMatch[1].trim() : "Không rõ";
-
         const gvMatch = text.match(/GV:\s*(.+?)(\n|$)/);
-        const teacher = gvMatch ? gvMatch[1].trim() : "CB Coi Thi / Chưa cập nhật";
-
+        const teacher = gvMatch ? gvMatch[1].trim() : "Chưa cập nhật";
+        
         let group = "";
         const groupSpan = div.querySelector('span[lang="lichtheotuan-nhom"]');
         if (groupSpan && groupSpan.parentElement) {
@@ -91,25 +81,13 @@
         const startTime = TIET_TIME[startTiet];
         const endTime = TIET_TIME[endTiet + 1]; 
 
-        if (!startTime || !endTime) {
-            console.warn(`⚠️ Bỏ qua môn: ${subjectName} do không tính được giờ (Tiết ${startTiet}-${endTiet})`);
-            return; 
-        }
+        if (!startTime || !endTime) return; 
 
         let type = "ly-thuyet"; 
-        
-        if (div.querySelector(".tamngung") || text.includes("Tạm ngưng")) {
-          type = "tam-ngung";
-        } 
-        else if (dataBg === "208412" || group !== "" || text.includes("Lịch thi")) { 
-          type = "thi"; 
-        } 
-        else if (style.includes("#92d6ff") || text.includes("Trực tuyến") || room.toLowerCase().includes("zoom")) {
-          type = "truc-tuyen";
-        } 
-        else if (style.includes("#71cb35") || text.includes("Thực hành")) {
-          type = "thuc-hanh"; 
-        }
+        if (div.querySelector(".tamngung") || text.includes("Tạm ngưng")) type = "tam-ngung";
+        else if (dataBg === "208412" || group !== "" || text.includes("Lịch thi")) type = "thi"; 
+        else if (style.includes("#92d6ff") || text.includes("Trực tuyến") || room.toLowerCase().includes("zoom")) type = "truc-tuyen";
+        else if (style.includes("#71cb35") || text.includes("Thực hành")) type = "thuc-hanh"; 
 
         events.push({
           subject: `[IUH] ${subjectName} ${type === 'thi' ? '(THI)' : ''}`,
@@ -122,16 +100,12 @@
     return events;
   }
 
-  // --- 4. TIẾN TRÌNH CHÍNH ---
   async function startMultiWeekSync() {
-    const storage = await chrome.storage.sync.get("webAppUrl");
-    const webAppUrl = storage.webAppUrl;
-
+    const webAppUrl = document.documentElement.getAttribute('data-iuh-webapp-url');
     if (!webAppUrl) {
       alert("Vui lòng dán link Apps Script vào Popup trước!");
       return;
     }
-
     const numWeeks = prompt("Nhập số tuần muốn đồng bộ:", "5");
     if (!numWeeks || isNaN(numWeeks)) return;
 
@@ -143,7 +117,6 @@
       for (let i = 0; i < parseInt(numWeeks); i++) {
         const currentDate = document.getElementById("firstDateOffWeek")?.value;
         btn.innerText = `⏳ Đang quét: Tuần ${i + 1}/${numWeeks}...`;
-
         const weekData = scrapeCurrentWeek();
         allEvents = allEvents.concat(weekData);
 
@@ -156,7 +129,6 @@
       }
 
       if (allEvents.length === 0) throw new Error("Không tìm thấy dữ liệu.");
-
       allEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
       
       const payload = {
@@ -166,32 +138,121 @@
       };
 
       btn.innerText = "🚀 Đang gửi dữ liệu lên Google Calendar...";
-      
-      // ĐÃ SỬA LỖI TẠI ĐÂY: Bỏ mode no-cors và dùng text/plain để né preflight OPTIONS
       const response = await fetch(webAppUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload)
       });
-
-      // Đọc trực tiếp phản hồi từ Apps Script
       const resultText = await response.text();
       
-      // Kiểm tra nếu có chữ ERROR từ file server trả về
       if (resultText.includes("ERROR") || resultText.includes("No data")) {
-        throw new Error("Lỗi từ máy chủ Google: " + resultText);
+        throw new Error("Lỗi từ máy chủ: " + resultText);
       }
-
-      // Thông báo thành công với số liệu thực tế
       alert(`✅ Hoàn tất!\nKết quả từ Google Calendar: ${resultText}`);
-
     } catch (err) {
-      console.error(err);
-      alert("❌ Lỗi đồng bộ:\n" + err.message + "\n\n(Hãy chắc chắn bạn đã Deploy đúng Web App URL mới nhất!)");
+      alert("❌ Lỗi đồng bộ:\n" + err.message);
     } finally {
       btn.innerText = originalText;
     }
   }
-
   createSyncButton();
-})();
+
+  // ==========================================
+  // PHẦN 2: AUTO CAPTCHA SOLVER (TENSORFLOW.JS)
+  // ==========================================
+  const CHARACTERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let iuhModel = null;
+
+  async function loadAIModel() {
+    try {
+        const extBaseUrl = document.documentElement.getAttribute('data-iuh-ext-url');
+        if (!extBaseUrl) return;
+        const modelUrl = extBaseUrl + 'tfjs_model/model.json';
+        iuhModel = await tf.loadLayersModel(modelUrl);
+    } catch (error) {
+        console.error("[IUH Sync] ❌ Lỗi nạp Model:", error);
+    }
+  }
+
+  function preprocessCaptcha(imgElement) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 150;
+    canvas.height = 50;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(imgElement, 0, 0, 150, 50);
+    const imageData = ctx.getImageData(0, 0, 150, 50);
+    
+    return tf.tidy(() => {
+        let tensor = tf.browser.fromPixels(imageData, 1);
+        tensor = tensor.toFloat().div(tf.scalar(255.0));
+        return tensor.expandDims(0);
+    });
+  }
+
+  async function solveIUHCaptcha() { 
+    await loadAIModel();
+    if (!iuhModel) return;
+
+    const imgElement = document.querySelector('#newcaptcha'); 
+    const inputElement = document.querySelector('#Captcha');
+    if (!imgElement || !inputElement) return;
+
+    try {
+        const tensor = preprocessCaptcha(imgElement);
+        const prediction = iuhModel.predict(tensor);
+        const data = prediction.dataSync(); 
+        let result = "";
+        
+        for(let i = 0; i < 4; i++) {
+            let maxVal = -1;
+            let maxIdx = -1;
+            for(let j = 0; j < 36; j++) {
+                let val = data[i * 36 + j];
+                if(val > maxVal) { maxVal = val; maxIdx = j; }
+            }
+            result += CHARACTERS[maxIdx];
+        }
+        
+        inputElement.value = result;
+        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+        inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+
+        console.log("[IUH Sync] 🎯 AI chốt mã:", result);
+        
+        // Bắn tín hiệu ra cho autologin.js biết để bấm nút
+        document.dispatchEvent(new CustomEvent('IuhCaptchaSolved'));
+
+        tf.dispose(tensor);
+        tf.dispose(prediction);
+    } catch (err) {
+        console.error("[IUH Sync] ❌ Lỗi giải mã:", err);
+    }
+  }
+
+  // ==========================================
+  // PHẦN 3: MẮT THẦN QUÉT CAPTCHA
+  // ==========================================
+  let aiTriggered = false; 
+
+  const checkExist = setInterval(() => {
+    const isAuto = document.documentElement.getAttribute('data-iuh-auto-captcha');
+    if (isAuto === null) return; 
+
+    if (isAuto === "false") {
+        clearInterval(checkExist);
+        console.log("[IUH Sync] 🛑 Chức năng Auto CAPTCHA đang TẮT. Nhường lại cho bạn tự gõ!");
+        return;
+    }
+
+    const imgElement = document.querySelector('#newcaptcha'); 
+    const inputElement = document.querySelector('#Captcha'); 
+    
+    if (imgElement && inputElement && !aiTriggered) {
+        aiTriggered = true; 
+        clearInterval(checkExist); 
+        console.log("[IUH Sync] 👀 Đã thấy CAPTCHA, AI đang khởi động...");
+        setTimeout(solveIUHCaptcha, 500); 
+    }
+  }, 500); 
+
+})(); // <-- CÁI NGOẶC QUAN TRỌNG NHẤT LÀ ĐÂY!!!

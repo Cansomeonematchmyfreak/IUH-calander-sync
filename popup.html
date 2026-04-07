@@ -1,27 +1,56 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <style>
-    body { width: 320px; padding: 15px; font-family: 'Segoe UI', sans-serif; }
-    h3 { color: #0f9d58; margin-top: 0; }
-    .note { font-size: 12px; color: #666; margin-bottom: 10px; }
-    input { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
-    button { 
-      width: 100%; padding: 10px; margin-top: 10px; border: none;
-      background: #0f9d58; color: white; font-weight: bold;
-      border-radius: 4px; cursor: pointer; 
-    }
-    button:hover { background: #0b8043; }
-    #status { font-size: 12px; color: #d93025; margin-top: 8px; text-align: center; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 15px; width: 300px; background-color: #f8f9fa; }
+    h3 { margin-top: 0; color: #b71a1a; text-align: center; border-bottom: 2px solid #ccc; padding-bottom: 8px;}
+    label { font-size: 12px; font-weight: bold; margin-top: 10px; display: block; color: #333;}
+    
+    /* Chỉnh lại input để tái sử dụng */
+    input[type="text"], input[type="password"] { width: 100%; margin-bottom: 8px; margin-top: 4px; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    
+    /* CSS cho khung chứa mật khẩu và con mắt */
+    .password-wrapper { position: relative; width: 100%; margin-bottom: 8px; margin-top: 4px; }
+    .password-wrapper input { margin: 0; padding-right: 35px; /* Chừa chỗ cho con mắt */ }
+    .eye-icon { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 14px; user-select: none; opacity: 0.7;}
+    .eye-icon:hover { opacity: 1; }
+
+    button { width: 100%; padding: 10px; background-color: #0056b3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px;}
+    button:hover { background-color: #004494; }
+    #status { font-size: 13px; text-align: center; margin-top: 10px; font-weight: bold; }
+    .switch-container { display: flex; align-items: center; margin-top: 15px; cursor: pointer; padding: 5px; background: #e9ecef; border-radius: 5px; }
+    .switch-container input { margin-right: 10px; cursor: pointer; width: 16px; height: 16px; }
   </style>
 </head>
 <body>
-  <h3>Cấu hình IUH Sync</h3>
-  <p class="note">Nhập URL Apps Script cá nhân của bạn để bắt đầu đồng bộ.</p>
-  <input type="text" id="scriptUrl" placeholder="https://script.google.com/.../exec">
-  <button id="saveBtn">Lưu Cấu Hình</button>
-  <div id="status"></div>
+  <h3>⚙️ Cài đặt IUH Sync</h3>
+
+  <label for="scriptUrl">🔗 Link Google Apps Script:</label>
+  <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/...">
+
+  <label for="username">👤 Mã số sinh viên:</label>
+  <input type="text" id="username" placeholder="Nhập MSSV">
+
+  <label for="password">🔑 Mật khẩu:</label>
+  <div class="password-wrapper">
+    <input type="password" id="password" placeholder="Nhập mật khẩu">
+    <span class="eye-icon" id="togglePassword" title="Hiện mật khẩu">
+      <svg id="eyeSvg" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+      </svg>
+    </span>
+  </div>
+
+  <label class="switch-container" for="autoCaptcha">
+    <input type="checkbox" id="autoCaptcha" checked>
+    <span>🤖 Tự động giải CAPTCHA & Đăng nhập</span>
+  </label>
+
+  <button id="saveBtn">Lưu Cài Đặt</button>
+  <p id="status"></p>
+  
   <script src="popup.js"></script>
 </body>
 </html>

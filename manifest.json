@@ -1,19 +1,26 @@
 {
   "manifest_version": 3,
-  "name": "IUH Calendar Sync",
-  "version": "2.0",
-  "permissions": [
-    "activeTab", 
-    "scripting", 
-    "storage"  
-  ],
+  "name": "IUH Calendar Sync AI",
+  "version": "4.0",
+  "permissions": ["storage"],
   "action": {
     "default_popup": "popup.html"
   },
   "content_scripts": [
     {
       "matches": ["https://sv.iuh.edu.vn/*"],
-      "js": ["content.js"]
+      "js": ["bridge.js", "autologin.js"] 
+    },
+    {
+      "matches": ["https://sv.iuh.edu.vn/*"],
+      "js": ["tf.min.js", "content.js"],
+      "world": "MAIN"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["tfjs_model/*", "tf.min.js"],
+      "matches": ["https://sv.iuh.edu.vn/*"]
     }
   ]
 }
