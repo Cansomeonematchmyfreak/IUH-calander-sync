@@ -235,12 +235,10 @@
   let aiTriggered = false; 
 
   const checkExist = setInterval(() => {
-    const isAuto = document.documentElement.getAttribute('data-iuh-auto-captcha');
-    if (isAuto === null) return; 
-
-    if (isAuto === "false") {
+    const isAutoCap = document.documentElement.getAttribute('data-iuh-auto-captcha');
+    if (isAutoCap === "false") {
         clearInterval(checkExist);
-        console.log("[IUH Sync] 🛑 Chức năng Auto CAPTCHA đang TẮT. Nhường lại cho bạn tự gõ!");
+        console.log("[IUH Sync] 🛑 AI giải mã đang TẮT.");
         return;
     }
 
@@ -250,9 +248,8 @@
     if (imgElement && inputElement && !aiTriggered) {
         aiTriggered = true; 
         clearInterval(checkExist); 
-        console.log("[IUH Sync] 👀 Đã thấy CAPTCHA, AI đang khởi động...");
         setTimeout(solveIUHCaptcha, 500); 
     }
-  }, 500); 
+}, 500);
 
 })(); // <-- CÁI NGOẶC QUAN TRỌNG NHẤT LÀ ĐÂY!!!
