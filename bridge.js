@@ -1,16 +1,11 @@
-// bridge.js
 (function() {
-    // 1. Lấy và gắn URL gốc của Extension (Dùng để load Model AI)
     const extId = chrome.runtime.id;
-    const baseDir = `chrome-extension://${extId}/`;
-    document.documentElement.setAttribute('data-iuh-ext-url', baseDir);
+    document.documentElement.setAttribute('data-iuh-ext-url', `chrome-extension://${extId}/`);
+    document.documentElement.setAttribute('data-iuh-model-url', chrome.runtime.getURL('tfjs_model/model.json'));
 
-    // 2. Lấy trạng thái công tắc Bật/Tắt từ Popup và gắn lên HTML
-    chrome.storage.sync.get(["autoCaptcha"], (data) => {
-        // Mặc định là Bật (true) nếu người dùng chưa mở Popup lưu bao giờ
-        const isAuto = data.autoCaptcha !== false; 
-        document.documentElement.setAttribute('data-iuh-auto-captcha', isAuto);
+    chrome.storage.sync.get(["autoCaptcha", "autoFillInfo", "autoClickLogin"], (data) => {
+        document.documentElement.setAttribute('data-iuh-auto-captcha', data.autoCaptcha !== false);
+        document.documentElement.setAttribute('data-iuh-auto-fill', data.autoFillInfo !== false);
+        document.documentElement.setAttribute('data-iuh-auto-login', data.autoClickLogin !== false);
     });
-
-    console.log("[IUH Sync] 🌉 Đã thiết lập cầu nối dữ liệu (Kèm tín hiệu Công tắc).");
-})();
+})();   
