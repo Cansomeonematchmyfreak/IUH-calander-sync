@@ -1,19 +1,34 @@
 {
   "manifest_version": 3,
-  "name": "IUH Calendar Sync",
-  "version": "2.0",
+  "name": "IUH Calendar Sync AI Pro",
+  "version": "5.1",
+  "description": "Đồng bộ lịch học IUH tự động với AI giải CAPTCHA",
   "permissions": [
-    "activeTab", 
-    "scripting", 
-    "storage"  
+    "storage",
+    "alarms"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html"
   },
+  "options_page": "options.html",
   "content_scripts": [
     {
-      "matches": ["https://sv.iuh.edu.vn/*"],
-      "js": ["content.js"]
+      "matches": ["*://sv.iuh.edu.vn/*"],
+      "js": ["bridge.js", "autologin.js"]
+    },
+    {
+      "matches": ["*://sv.iuh.edu.vn/*"],
+      "js": ["tf.min.js", "content.js"],
+      "world": "MAIN"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["tfjs_model/*", "tf.min.js"],
+      "matches": ["*://sv.iuh.edu.vn/*"]
     }
   ]
 }
