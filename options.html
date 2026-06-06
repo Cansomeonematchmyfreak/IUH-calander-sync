@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>IUH Calendar Sync - Dashboard Cấu Hình</title>
+  <style>
+    body { font-family: 'Segoe UI', Roboto, sans-serif; background-color: #f3f4f6; margin: 0; padding: 40px; color: #333; }
+    .container { max-width: 750px; background: white; margin: 0 auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 25px rgba(0,0,0,0.08); }
+    h2 { text-align: center; color: #b71a1a; margin-top: 0; padding-bottom: 15px; border-bottom: 2px solid #f3f4f6; }
+    
+    .section { margin-top: 25px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+    .section-title { font-size: 16px; font-weight: bold; color: #1a73e8; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;}
+    
+    label { font-size: 13px; font-weight: 600; display: block; margin-top: 12px; color: #555; }
+    input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; outline: none; font-size: 14px; }
+    input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.15); }
+    
+    /* Thiết kế khu vực custom màu sắc */
+    .color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px; }
+    .color-item { display: flex; flex-direction: column; gap: 4px; }
+    select { padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; background: white; cursor: pointer; outline: none; margin-top: 6px; width: 100%; transition: all 0.3s ease;}
+    
+    /* Thiết kế hàng Toggle switch đồng bộ */
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; background: #f8f9fa; padding: 12px; border-radius: 8px; }
+    .switch { position: relative; display: inline-block; width: 46px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 24px; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .3s; border-radius: 50%; }
+    input:checked + .slider { background-color: #0f9d58; }
+    input:checked + .slider:before { transform: translateX(22px); }
+
+    .btn-container { margin-top: 30px; display: flex; gap: 15px; }
+    #saveBtn { flex: 1; background: #b71a1a; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; font-size: 15px; cursor: pointer; transition: background 0.2s; }
+    #saveBtn:hover { background: #961313; }
+    #status { font-size: 14px; text-align: center; margin-top: 15px; font-weight: bold; min-height: 20px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>⚙️ BẢNG ĐIỀU KHIỂN EXTENSION IUH SYNC</h2>
+
+  <div class="section">
+    <div class="section-title">🔗 Cấu hình API & Tài khoản</div>
+    <label>Link Google Apps Script WebApp:</label>
+    <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec">
+    
+    <label>Mã số sinh viên (MSSV):</label>
+    <input type="text" id="username" placeholder="Nhập tài khoản sinh viên">
+    
+    <label class="title">🔑 Mật khẩu:</label>
+    <div class="password-wrapper" style="position: relative; width: 100%;"> 
+        <input type="password" id="password" placeholder="Nhập mật khẩu sinh viên" style="width: 100%; padding: 10px; padding-right: 40px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; outline: none;">
+        <span class="eye-icon" id="togglePassword" title="Hiện mật khẩu" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px;">
+            <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+        </span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🎨 Cấu hình Màu sắc Lịch học (Google Calendar)</div>
+    <div class="color-grid">
+        <div class="color-item">
+            <label>Môn Lý thuyết:</label>
+            <select id="color-ly-thuyet">
+                <option value="1" selected>🟣 Lavender (Tím nhạt)</option>
+                <option value="2">🌿 Sage (Xanh lá nhạt)</option>
+                <option value="3">🍇 Grape (Tím đậm)</option>
+                <option value="4">🌸 Flamingo (Hồng)</option>
+                <option value="5">🟡 Banana (Vàng)</option>
+                <option value="6">🟠 Tangerine (Cam)</option>
+                <option value="7">🩵 Peacock (Xanh lơ)</option>
+                <option value="8">🔘 Graphite (Xám)</option>
+                <option value="9">🔵 Blueberry (Xanh dương)</option>
+                <option value="10">🌲 Basil (Xanh lá đậm)</option>
+                <option value="11">🔴 Tomato (Đỏ)</option>
+            </select>
+        </div>
+        <div class="color-item">
+            <label>Môn Thực hành:</label>
+            <select id="color-thuc-hanh">
+                <option value="1">🟣 Lavender (Tím nhạt)</option>
+                <option value="2" selected>🌿 Sage (Xanh lá nhạt)</option>
+                <option value="3">🍇 Grape (Tím đậm)</option>
+                <option value="4">🌸 Flamingo (Hồng)</option>
+                <option value="5">🟡 Banana (Vàng)</option>
+                <option value="6">🟠 Tangerine (Cam)</option>
+                <option value="7">🩵 Peacock (Xanh lơ)</option>
+                <option value="8">🔘 Graphite (Xám)</option>
+                <option value="9">🔵 Blueberry (Xanh dương)</option>
+                <option value="10">🌲 Basil (Xanh lá đậm)</option>
+                <option value="11">🔴 Tomato (Đỏ)</option>
+            </select>
+        </div>
+        <div class="color-item">
+            <label>Môn Trực tuyến:</label>
+            <select id="color-truc-tuyen">
+                <option value="1">🟣 Lavender (Tím nhạt)</option>
+                <option value="2">🌿 Sage (Xanh lá nhạt)</option>
+                <option value="3">🍇 Grape (Tím đậm)</option>
+                <option value="4">🌸 Flamingo (Hồng)</option>
+                <option value="5">🟡 Banana (Vàng)</option>
+                <option value="6">🟠 Tangerine (Cam)</option>
+                <option value="7" selected>🩵 Peacock (Xanh lơ)</option>
+                <option value="8">🔘 Graphite (Xám)</option>
+                <option value="9">🔵 Blueberry (Xanh dương)</option>
+                <option value="10">🌲 Basil (Xanh lá đậm)</option>
+                <option value="11">🔴 Tomato (Đỏ)</option>
+            </select>
+        </div>
+        <div class="color-item">
+            <label>Lịch Thi:</label>
+            <select id="color-thi">
+                <option value="1">🟣 Lavender (Tím nhạt)</option>
+                <option value="2">🌿 Sage (Xanh lá nhạt)</option>
+                <option value="3">🍇 Grape (Tím đậm)</option>
+                <option value="4">🌸 Flamingo (Hồng)</option>
+                <option value="5">🟡 Banana (Vàng)</option>
+                <option value="6">🟠 Tangerine (Cam)</option>
+                <option value="7">🩵 Peacock (Xanh lơ)</option>
+                <option value="8">🔘 Graphite (Xám)</option>
+                <option value="9">🔵 Blueberry (Xanh dương)</option>
+                <option value="10">🌲 Basil (Xanh lá đậm)</option>
+                <option value="11" selected>🔴 Tomato (Đỏ)</option>
+            </select>
+        </div>
+        <div class="color-item" style="grid-column: span 2;">
+            <label>Lịch Tạm ngưng:</label>
+            <select id="color-tam-ngung">
+                <option value="1">🟣 Lavender (Tím nhạt)</option>
+                <option value="2">🌿 Sage (Xanh lá nhạt)</option>
+                <option value="3">🍇 Grape (Tím đậm)</option>
+                <option value="4">🌸 Flamingo (Hồng)</option>
+                <option value="5">🟡 Banana (Vàng)</option>
+                <option value="6">🟠 Tangerine (Cam)</option>
+                <option value="7">🩵 Peacock (Xanh lơ)</option>
+                <option value="8" selected>🔘 Graphite (Xám)</option>
+                <option value="9">🔵 Blueberry (Xanh dương)</option>
+                <option value="10">🌲 Basil (Xanh lá đậm)</option>
+                <option value="11">🔴 Tomato (Đỏ)</option>
+            </select>
+        </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">⚡ Cấu hình Tự động hóa (Khi mở trang trường)</div>
+    
+    <div class="toggle-row">
+      <span style="font-size:14px; font-weight:500;">Tự động điền tài khoản MSSV và Mật khẩu</span>
+      <label class="switch">
+        <input type="checkbox" id="autoFillInfo">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span style="font-size:14px; font-weight:500;">Tự động bẻ khóa giải Captcha bằng mô hình AI</span>
+      <label class="switch">
+        <input type="checkbox" id="autoCaptcha">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span style="font-size:14px; font-weight:500;">Tự động kích hoạt Click Đăng nhập sau khi giải xong</span>
+      <label class="switch">
+        <input type="checkbox" id="autoClickLogin">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🤖 Tiện ích tự động hóa ngầm</div>
+    <div class="toggle-row">
+      <span style="font-size:14px; font-weight:500;">Bật tự động đồng bộ định kỳ hàng tuần (7 ngày/lần)</span>
+      <label class="switch">
+        <input type="checkbox" id="autoSyncEnabled">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="btn-container">
+    <button id="saveBtn">LƯU TOÀN BỘ CẤU HÌNH</button>
+  </div>
+  <div id="status"></div>
+</div>
+
+<script src="options.js"></script>
+</body>
+</html>
