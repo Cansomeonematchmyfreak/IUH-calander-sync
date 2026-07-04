@@ -60,4 +60,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "manualSyncComplete") {
         chrome.storage.sync.set({ lastSyncTime: Date.now() });
     }
+
+
+
 });
+    
+    // Khi người dùng click vào biểu tượng Extension trên thanh công cụ
+    chrome.action.onClicked.addListener((tab) => {
+        chrome.runtime.openOptionsPage();
+    });

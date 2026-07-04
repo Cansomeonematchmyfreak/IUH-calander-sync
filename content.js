@@ -2,9 +2,7 @@
 (function () {
   console.log("[IUH Sync] Content Script Loaded - Dual Mode (Manual & Auto) with AI Solver");
 
-  // =========================================================================
-  // 🛠️ VÁ LỖI JQUERY CHO WEB TRƯỜNG (CHỮ ĐỎ TRONG CONSOLE SẼ BIẾN MẤT)
-  // =========================================================================
+
   if (window.jQuery && !window.jQuery.fn.andSelf) {
       window.jQuery.fn.andSelf = window.jQuery.fn.addBack;
       console.log("[IUH Sync] 🛠️ Đã vá thành công lỗi .andSelf() của web trường.");
@@ -414,5 +412,5 @@
           createSyncButton();
       }
   }, 500);
-
+  
 })();

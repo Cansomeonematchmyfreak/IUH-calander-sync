@@ -209,4 +209,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-});
+    
+    // --- TÍCH HỢP LOGIC KÍCH HOẠT KHẢO SÁT MỚI ---
+
+    const btnStartSurvey = document.getElementById('btnStartSurvey');
+    const surveyStatus = document.getElementById('survey-status');
+
+    if (btnStartSurvey) {
+        btnStartSurvey.addEventListener('click', async () => {
+            surveyStatus.style.display = 'block';
+            surveyStatus.textContent = 'Đang ghi nhận cờ hiệu hoạt động...';
+
+            // 1. Kích hoạt cờ chạy và thiết lập bộ nhớ đệm
+            await chrome.storage.local.set({
+                iuh_auto_survey_running: true,
+                iuh_survey_current_index: 0,
+                iuh_survey_urls: [] // Sẽ được content script quét tự động tại trang web trường
+            });
+
+            surveyStatus.textContent = 'Đang kiểm tra và điều hướng đến trang khảo sát...';
+
+            // 2. Kiểm tra tab xem trang trường đang mở sẵn không, nếu có thì bẻ lái, không thì mở tab mới
+            chrome.tabs.query({ url: "*://sv.iuh.edu.vn/*" }, (tabs) => {
+                if (tabs.length > 0) {
+                    chrome.tabs.update(tabs[0].id, { 
+                        url: "https://sv.iuh.edu.vn/sinh-vien/danh-sach-khao-sat.html", 
+                        active: true 
+                      });
+                } else {
+                    chrome.tabs.create({ url: "https://sv.iuh.edu.vn/sinh-vien/danh-sach-khao-sat.html" });
+                }
+            });
+        });
+    }
+})
+
+
+
