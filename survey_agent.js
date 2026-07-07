@@ -2,14 +2,15 @@
 const surveySleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 (async function handleAutoSurveyContext() {
-  // 1. Chạy ở ngữ cảnh Isolated nên gọi trực tiếp chrome.storage.local rất an toàn
+  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
+
   const state = await chrome.storage.local.get([
     'iuh_auto_survey_running', 
     'iuh_survey_current_index', 
     'iuh_survey_urls'
   ]);
   
-  if (!state.iuh_auto_survey_running) return; // Nếu không bật nút, dừng ngay lập tức
+  if (!state.iuh_auto_survey_running) return;
 
   const currentUrl = window.location.href;
   let currentIndex = state.iuh_survey_current_index || 0;
@@ -18,48 +19,48 @@ const surveySleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   // --- KỊCH BẢN A: ĐANG TẠI MÀN HÌNH DANH SÁCH PHIẾU KHẢO SÁT ---
   if (currentUrl.includes('/sinh-vien/danh-sach-khao-sat.html')) {
     
-    // Đợi 1 giây để giao diện HTML tải xong hoàn toàn
-    await surveySleep(1000);
+    await surveySleep(500); // Chờ nhẹ giao diện ổn định
 
     if (urls.length === 0) {
-      // Chỉ quét thẻ a nằm trong tab chưa khảo sát (#tab_chuaks)
       const pendingElements = document.querySelectorAll('#tab_chuaks .item a.title');
       urls = Array.from(pendingElements).map(a => 'https://sv.iuh.edu.vn' + a.getAttribute('href'));
 
       if (urls.length === 0) {
         await chrome.storage.local.set({ iuh_auto_survey_running: false, iuh_survey_current_index: 0, iuh_survey_urls: [] });
-        alert('🎉 Không tìm thấy phiếu khảo sát nào chưa hoàn thành!');
+        alert('Bạn không còn phiếu khảo sát học phần nào chưa làm.');
         return;
       }
-
-      // Lưu trữ danh sách URL vào storage
       await chrome.storage.local.set({ iuh_survey_urls: urls, iuh_survey_current_index: 0 });
       currentIndex = 0;
     }
 
-    // Hiển thị thanh tiến trình
-    injectSurveyOverlay(currentIndex, urls.length, "Đang mở phiếu khảo sát tiếp theo...");
+    injectSurveyOverlay(currentIndex, urls.length, "Đang chuẩn bị đẩy tab khảo sát ngầm...");
 
     if (currentIndex < urls.length) {
-      await surveySleep(1200); // Khoảng nghỉ an toàn trực quan
-      window.location.href = urls[currentIndex];
+      // TĂNG TIẾN TRÌNH TRƯỚC: Để khi tab con mở ra và đóng lại, trang mẹ reload sẽ chạy tiếp môn sau
+      await chrome.storage.local.set({ iuh_survey_current_index: currentIndex + 1 });
+      
+      // Bắn tin nhắn yêu cầu background mở và GHIM tab mới tốc độ cao
+      chrome.runtime.sendMessage({
+          action: "openAndPinSurveyTab",
+          url: urls[currentIndex]
+      });
     } else {
-      // Đã đi qua hết toàn bộ mảng liên kết
+      // Đã hoàn thành toàn bộ danh sách URL
       await chrome.storage.local.set({ iuh_auto_survey_running: false, iuh_survey_current_index: 0, iuh_survey_urls: [] });
       injectSurveyOverlay(urls.length, urls.length, "Hoàn thành nhiệm vụ!");
-      await surveySleep(500);
-      alert('🎉 Toàn bộ phiếu khảo sát học phần đã được xử lý thành công!');
+      await surveySleep(400);
+      alert('Toàn bộ phiếu khảo sát học phần đã được xử lý thành công!');
       window.location.reload();
     }
   }
   
-  // --- KỊCH BẢN B: ĐANG TRONG TRANG CHI TIẾT ĐIỀN KHẢO SÁT MÔN HỌC ---
+  // --- KỊCH BẢN B: ĐANG TRONG TAB CHI TIẾT ĐIỀN KHẢO SÁT (ĐANG BỊ GHIM) ---
   else if (currentUrl.includes('/sinh-vien/chi-tiet-phieu-khao-sat.html')) {
     
-    injectSurveyOverlay(currentIndex, urls.length, "Đang điền phiếu khảo sát tự động...");
-    await surveySleep(1000); // Chờ DOM render ổn định form
-
-    // 1. Tích chọn ô "Bình thường"
+    injectSurveyOverlay(currentIndex, urls.length, "Đang điền nhanh dữ liệu form...");
+    
+    // 1. Điền trắc nghiệm mức "Bình thường" lập tức không cần trễ
     const radioGroups = document.querySelectorAll('ul.group-cautraloi');
     radioGroups.forEach(ul => {
       const labels = Array.from(ul.querySelectorAll('label'));
@@ -76,19 +77,25 @@ const surveySleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
       textarea.value = "Không";
     });
 
-    // 3. Tăng index lên 1 trước khi gửi bài
-    await chrome.storage.local.set({ iuh_survey_current_index: currentIndex + 1 });
-
-    // 4. Bấm nút Nộp bài
+    // 3. Click nút nộp bài ngay
     const btnGui = document.getElementById('btnGui');
     if (btnGui) {
-      await surveySleep(800);
       btnGui.click(); 
     }
+
+    // 4. KIỂM TRA PHẢN HỒI SAU KHI CLICK NỘP: 
+    // Sau khi click btnGui, hệ thống trường sẽ xử lý nộp bài và chuyển hướng URL. 
+    // Ta bắt khoảnh khắc trang web bắt đầu dời đi để phát lệnh đóng tab ngay lập tức (Tiết kiệm thời gian chờ tải lại)
+    window.addEventListener('unload', () => {
+        chrome.runtime.sendMessage({ action: "closeSurveyTab" });
+    });
+    
+    // Dự phòng trường hợp trang phản hồi quá nhanh mà không trigger unload
+    await surveySleep(400);
+    chrome.runtime.sendMessage({ action: "closeSurveyTab" });
   }
 })();
 
-// Hàm vẽ Progress Bar ghim lên màn hình web trường
 function injectSurveyOverlay(current, total, msgText) {
   let overlay = document.getElementById('iuh-extension-survey-overlay');
   const rate = total > 0 ? Math.round((current / total) * 100) : 0;
@@ -110,7 +117,7 @@ function injectSurveyOverlay(current, total, msgText) {
     <div style="font-size: 12px; color: #666; font-style: italic; margin-bottom: 8px;">${msgText}</div>
     <div style="font-size: 13px; font-weight: bold; margin-bottom: 6px;">Tiến trình: Môn số ${current}/${total} (${rate}%)</div>
     <div style="background: #e9ecef; border-radius: 4px; height: 14px; width: 100%; overflow: hidden; margin-bottom: 10px;">
-      <div style="background: #28a745; width: ${rate}%; height: 100%; transition: width 0.3s ease;"></div>
+      <div style="background: #28a745; width: ${rate}%; height: 100%; transition: width 0.2s ease;"></div>
     </div>
     <button id="iuh-btn-abort-survey" style="width: 100%; background: #dc3545; color: #fff; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">Hủy Lệnh Khẩn Cấp</button>
   `;
