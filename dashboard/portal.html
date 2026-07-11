@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IUH Alternative Dashboard</title>
+    <link rel="stylesheet" href="portal.css">
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="left-sidebar">
+        <div class="sidebar-logo">🎓 IUH Dashboard</div>
+
+        <nav class="sidebar-nav">
+            <a href="#" class="active">📊 Kết quả học tập</a>
+            <a href="#" class="disabled">📅 Lịch học (Sắp ra mắt)</a>
+            <a href="#" class="disabled">📝 Khảo sát (Sắp ra mắt)</a>
+        </nav>
+    </aside>
+
+    <!-- Quy chế -->
+    <section class="regulation-panel" id="reg-panel">
+
+        <div class="info-trigger" id="btn-toggle-reg" title="Xem quy chế đào tạo">
+            i
+        </div>
+
+        <div class="reg-content">
+
+            <h3>📜 Quy chế đào tạo IUH</h3>
+
+            <ul>
+                <li><b>Lý thuyết:</b> <code>50% Cuối kỳ + 30% Giữa kỳ + 20% Thường xuyên</code>.</li>
+                <li><b>Điểm liệt:</b> Thi cuối kỳ &lt; 3.0 ➜ <b>F (Rớt)</b>.</li>
+                <li><b>Tích hợp:</b> Thực hành &lt; 3.0 ➜ Không được thi Lý thuyết.</li>
+                <li><b>Làm tròn:</b> &lt;0.25 → 0.0 | 0.25–&lt;0.75 → 0.5 | ≥0.75 → 1.0.</li>
+                <li><b>Tốt nghiệp/Thực tập:</b> Đạt từ 5.0 trở lên.</li>
+                <li><b>Loại trừ:</b> Thể chất, Quốc phòng không tính GPA.</li>
+            </ul>
+
+        </div>
+
+    </section>
+
+    <!-- Main -->
+    <main class="main-content">
+
+        <header class="topbar">
+
+            <div>
+                <h1>Bảng Điểm Sinh Viên</h1>
+
+                <p class="subtitle text-warning font-medium">
+                    💡 Mẹo: Nhập trực tiếp vào các ô điểm bên dưới để xem hệ thống mô phỏng điểm số.
+                </p>
+            </div>
+
+            <button id="btn-sync-grades" class="btn-primary">
+                <span class="icon">🔄</span>
+                Làm mới dữ liệu gốc
+            </button>
+
+        </header>
+
+        <!-- CARD -->
+        <section class="stats-grid">
+
+            <!-- Tiến độ -->
+            <div class="stat-card credit-card">
+
+                <h3>Tiến độ đào tạo</h3>
+
+                <div class="svg-chart-container">
+
+                    <svg viewBox="0 0 120 120" class="circular-chart">
+
+                        <circle cx="60" cy="60" r="50" class="bg-circle"></circle>
+
+                        <circle cx="60" cy="60" r="35" class="bg-circle"></circle>
+
+                        <circle
+                            id="svg-circle-total"
+                            cx="60"
+                            cy="60"
+                            r="50"
+                            class="circle-total">
+                        </circle>
+
+                        <circle
+                            id="svg-circle-current"
+                            cx="60"
+                            cy="60"
+                            r="35"
+                            class="circle-current">
+                        </circle>
+
+                    </svg>
+
+                    <div class="chart-center-text" id="chart-center-text">
+
+                        <div class="tc-value" id="val-tin-chi">
+                            --/--
+                        </div>
+
+                        <div class="tc-label" id="lbl-tin-chi">
+                            Tín chỉ
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- GPA 10 -->
+
+            <div class="stat-card">
+
+                <h3>GPA (Hệ 10)</h3>
+
+                <p class="stat-value text-green" id="val-gpa-10">
+                    --
+                </p>
+
+            </div>
+
+            <!-- GPA 4 -->
+
+            <div class="stat-card">
+
+                <h3>GPA (Hệ 4)</h3>
+
+                <p class="stat-value text-orange" id="val-gpa-4">
+                    --
+                </p>
+
+            </div>
+
+        </section>
+
+        <!-- Bảng điểm -->
+
+        <section class="table-container">
+
+            <div class="table-scroll">
+
+                <table class="grade-table">
+
+                    <thead>
+
+                        <tr>
+
+                            <th rowspan="2">Mã HP</th>
+                            <th rowspan="2">Tên Môn Học</th>
+                            <th rowspan="2" class="text-center">Số TC</th>
+
+                            <th colspan="6" class="text-center group-th">
+                                Thường Kỳ
+                            </th>
+
+                            <th colspan="4" class="text-center group-th">
+                                Thực Hành
+                            </th>
+
+                            <th rowspan="2" class="text-center">GK</th>
+
+                            <th rowspan="2" class="text-center">CK</th>
+
+                            <th rowspan="2" class="text-center">Hệ 10</th>
+
+                            <th rowspan="2" class="text-center">Hệ 4</th>
+
+                            <th rowspan="2" class="text-center">Chữ</th>
+
+                            <th rowspan="2" class="text-center">Xếp Loại</th>
+
+                            <th rowspan="2" class="text-center">Đạt</th>
+
+                        </tr>
+
+                        <tr>
+
+                            <th class="text-center sub-th">1</th>
+                            <th class="text-center sub-th">2</th>
+                            <th class="text-center sub-th">3</th>
+                            <th class="text-center sub-th">4</th>
+                            <th class="text-center sub-th">5</th>
+                            <th class="text-center sub-th">6</th>
+
+                            <th class="text-center sub-th">1</th>
+                            <th class="text-center sub-th">2</th>
+                            <th class="text-center sub-th">3</th>
+                            <th class="text-center sub-th">4</th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody id="grade-table-body">
+
+                        <tr>
+
+                            <td colspan="20" class="text-center font-medium">
+                                Đang tải dữ liệu...
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<script src="grade-scraper.js"></script>
+<script src="portal.js"></script>
+
+</body>
+</html>

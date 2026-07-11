@@ -85,6 +85,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // SỰ KIỆN CLICK ICON EXTENSION (NẰM NGOÀI CÙNG ĐỘC LẬP)
+// chrome.action.onClicked.addListener((tab) => {
+//     chrome.runtime.openOptionsPage();
+// });
+
+// Bắt sự kiện người dùng bấm vào icon Extension trên toolbar
 chrome.action.onClicked.addListener((tab) => {
-    chrome.runtime.openOptionsPage();
+    // Mở portal.html ở một Tab mới với tư cách là Dashboard
+    chrome.tabs.create({ url: chrome.runtime.getURL("dashboard/portal.html") });
 });
