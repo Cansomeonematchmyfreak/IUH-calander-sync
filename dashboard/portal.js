@@ -524,3 +524,327 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+
+/* ============================================================
+   TÍCH HỢP TỰ ĐỘNG HÓA GHOST TAB & SIDEBAR NAV
+   ============================================================ */
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Quản lý chuyển đổi Tab trên Sidebar (Hiệu ứng Active)
+    const navGrades = $('nav-grades');
+    const navSchedule = $('nav-schedule');
+    const navSurvey = $('nav-survey');
+
+    function switchActiveNav(activeNav) {
+        [navGrades, navSchedule, navSurvey].forEach(nav => {
+            if(nav) nav.classList.remove('active');
+        });
+        if(activeNav) activeNav.classList.add('active');
+    }
+
+    // Lắng nghe sự kiện kích hoạt Khảo sát tự động
+    if (navSurvey) {
+        navSurvey.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchActiveNav(navSurvey);
+
+            if (confirm("Extension sẽ tự động tích chọn 'Bình thường' và điền form tất cả các phiếu khảo sát chưa hoàn thành theo kịch bản ngầm. Tiếp tục?")) {
+                // Thiết lập trạng thái chạy tự động khảo sát
+                chrome.storage.local.set({
+                    'iuh_auto_survey_running': true,
+                    'iuh_survey_current_index': 0,
+                    'iuh_survey_urls': []
+                }, () => {
+                    // Ra lệnh cho background mở tab danh sách khảo sát để survey_agent.js xử lý
+                    chrome.runtime.sendMessage({ action: "triggerAutoSurvey" });
+                });
+            }
+        });
+    }
+});
+
+/**
+ * Bổ sung cơ chế tự động tái đăng nhập nếu phát hiện hết hạn phiên (Session) 
+ * Tích hợp trực tiếp vào hàm trigerSync() sẵn có của portal.js
+ */
+function triggerSyncEnhanced() {
+    const btnSync = $('btn-sync-grades');
+    const tbody = $('grade-table-body');
+
+    if (btnSync) btnSync.innerHTML = `<span class="icon">⏳</span> Đang đồng bộ...`;
+    tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium">Đang tải và phân tích dữ liệu từ trường...</td></tr>`;
+
+    fetchAndProcessGrades().then(data => {
+        if (!data) {
+            // Khi data trả về null hoặc lỗi, khả năng cao là Session đã hết hạn
+            if (btnSync) btnSync.innerHTML = `<span class="icon">🔑</span> Đang cấp lại phiên...`;
+            tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium">Phát hiện phiên đăng nhập hết hạn. Đang kích hoạt Ghost Tab đăng nhập lại tự động bằng AI...</td></tr>`;
+            
+            // Gửi yêu cầu Khởi động Ghost Tab đăng nhập ngầm để lấy Cookie mới
+            chrome.runtime.sendMessage({ action: "renewSessionViaGhostTab" });
+            return;
+        }
+        globalDashboardData = data;
+        renderDashboard(data);
+        if (btnSync) btnSync.innerHTML = `<span class="icon">✅</span> Đã cập nhật`;
+        setTimeout(() => {
+            if (btnSync) btnSync.innerHTML = `<span class="icon">🔄</span> Làm mới dữ liệu gốc`;
+        }, 3000);
+    });
+}
+
+/// Lắng nghe sự kiện cấp phiên thành công từ Background
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "sessionRenewedSuccessfully") {
+        console.log("[Dashboard] Phiên đã sẵn sàng, tự động kích hoạt cào lại điểm.");
+        // Gọi lại logic đồng bộ hóa gốc của portal.js để render điểm mới
+        if (typeof triggerSync === 'function') {
+            triggerSync();
+        }
+    }
+});
+
+/* ============================================================
+   TÍCH HỢP QUẢN LÝ TAB SPA, FORM OPTION & INTERACTIVE MODAL
+   ============================================================ */
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Định nghĩa các phần tử điều hướng và hiển thị Tab
+    const navGrades = $('nav-grades');
+    const navSchedule = $('nav-schedule');
+    const navSurvey = $('nav-survey');
+    const navSettings = $('nav-settings');
+
+    const tabGrades = $('tab-content-grades');
+    const tabSettings = $('tab-content-settings');
+
+    // 2. Khối phần tử xử lý Modal Số tuần lịch học
+    const modalWeeks = $('modal-weeks-sync');
+    const weeksInput = $('sync-weeks-input');
+    const btnCloseWeeksModal = $('btn-close-weeks-modal');
+    const btnSubmitWeeksModal = $('btn-submit-weeks-modal');
+
+    // 3. Khối phần tử liên quan đến Form Cài đặt
+    const txtUser = $('setting-user');
+    const txtPass = $('setting-pass');
+    const chkAutoFill = $('setting-auto-fill');
+    const chkAutoLogin = $('setting-auto-login');
+    const btnTogglePassword = $('btn-toggle-password');
+    const btnSaveSettings = $('btn-save-settings');
+    
+    // Tách biệt 5 Element điều khiển màu sắc tương ứng
+    const selColorDirect = $('setting-color-direct');
+    const selColorOnline = $('setting-color-online');
+    const selColorPractice = $('setting-color-practice');
+    const selColorPostponed = $('setting-color-postponed');
+    const selColorExam = $('setting-color-exam');
+
+    // Mẫu danh sách màu sắc dựa trên Color Enum của Google Apps Script
+    const colorOptionsHtml = `
+        <option value="1">Lavender (Tím nhạt)</option>
+        <option value="2">Sage (Xanh lá nhạt)</option>
+        <option value="3">Grape (Tím đậm)</option>
+        <option value="4">Flamingo (Hồng)</option>
+        <option value="5">Banana (Vàng nhạt)</option>
+        <option value="6">Tangerine (Cam)</option>
+        <option value="7">Peacock (Xanh lơ)</option>
+        <option value="8">Graphite (Xám)</option>
+        <option value="9">Blueberry (Xanh dương)</option>
+        <option value="10">Basil (Xanh lá đậm)</option>
+        <option value="11">Tomato (Đỏ)</option>
+    `;
+
+    // Render danh sách tùy chọn vào toàn bộ các Select Input màu sắc
+    document.querySelectorAll('.color-select-input').forEach(select => {
+        if (select) select.innerHTML = colorOptionsHtml;
+    });
+
+    // --- TÍNH NĂNG 1: TOGGLE HIỆN/ẨN MẬT KHẨU (SVG ICONS) ---
+    const iconEyeVisible = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+    const iconEyeHidden = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+
+    if (btnTogglePassword && txtPass) {
+        // Đặt Icon mặc định lúc vừa render JS
+        btnTogglePassword.innerHTML = iconEyeHidden;
+        
+        btnTogglePassword.addEventListener('click', () => {
+            if (txtPass.type === 'password') {
+                txtPass.type = 'text'; // Hiện mật khẩu
+                btnTogglePassword.innerHTML = iconEyeVisible; 
+                btnTogglePassword.title = 'Ẩn mật khẩu';
+            } else {
+                txtPass.type = 'password'; // Ẩn mật khẩu
+                btnTogglePassword.innerHTML = iconEyeHidden;
+                btnTogglePassword.title = 'Hiện mật khẩu';
+            }
+        });
+        
+        // Thêm hiệu ứng hover đổi màu cho icon con mắt
+        btnTogglePassword.addEventListener('mouseenter', () => btnTogglePassword.style.color = '#fff');
+        btnTogglePassword.addEventListener('mouseleave', () => btnTogglePassword.style.color = 'var(--text-muted)');
+    }
+
+    // --- TÍNH NĂNG 2: TẢI DỮ LIỆU CẤU HÌNH PHÂN PHỐI 5 MÀU SẮC RỜI RẠC ---
+    function loadSettingsToForm() {
+        chrome.storage.sync.get([
+            'iuhUser', 'iuhPass', 'autoFillInfo', 'autoClickLogin', 
+            'calendarColorDirect', 'calendarColorOnline', 'calendarColorPractice', 'calendarColorPostponed', 'calendarColorExam'
+        ], (result) => {
+            if (txtUser) txtUser.value = result.iuhUser || '';
+            if (txtPass) txtPass.value = result.iuhPass || '';
+            if (chkAutoFill) chkAutoFill.checked = result.autoFillInfo !== false;
+            if (chkAutoLogin) chkAutoLogin.checked = result.autoClickLogin !== false;
+            
+            // Gán giá trị lưu trữ hoặc giá trị mặc định trực quan cho từng loại
+            if (selColorDirect) selColorDirect.value = result.calendarColorDirect || '9';    
+            if (selColorOnline) selColorOnline.value = result.calendarColorOnline || '7';    
+            if (selColorPractice) selColorPractice.value = result.calendarColorPractice || '2';
+            if (selColorPostponed) selColorPostponed.value = result.calendarColorPostponed || '8';
+            if (selColorExam) selColorExam.value = result.calendarColorExam || '11';        
+        });
+    }
+
+    // --- TÍNH NĂNG 3: LƯU TẤT CẢ THÔNG SỐ VÀO CHROME STORAGE ---
+    if (btnSaveSettings) {
+        btnSaveSettings.addEventListener('click', () => {
+            const dataToSave = {
+                iuhUser: txtUser.value.trim(),
+                iuhPass: txtPass.value,
+                autoFillInfo: chkAutoFill.checked,
+                autoClickLogin: chkAutoLogin.checked,
+                calendarColorDirect: selColorDirect.value,
+                calendarColorOnline: selColorOnline.value,
+                calendarColorPractice: selColorPractice.value,
+                calendarColorPostponed: selColorPostponed.value,
+                calendarColorExam: selColorExam.value
+            };
+
+            chrome.storage.sync.set(dataToSave, () => {
+                btnSaveSettings.innerText = '✅ Đã cấu hình hệ thống thành công!';
+                btnSaveSettings.style.background = 'var(--success)';
+                setTimeout(() => {
+                    btnSaveSettings.innerText = '💾 Lưu cấu hình hệ thống';
+                    btnSaveSettings.style.background = 'var(--primary)';
+                }, 2000);
+            });
+        });
+    }
+
+    // --- LOGIC CHUYỂN TAB SPA ---
+    function switchTab(activeNav, activeTabId) {
+        [navGrades, navSchedule, navSurvey, navSettings].forEach(nav => {
+            if (nav) nav.classList.remove('active');
+        });
+        if (activeNav) activeNav.classList.add('active');
+
+        if (activeTabId === 'grades') {
+            tabGrades.style.display = 'block';
+            tabSettings.style.display = 'none';
+        } else if (activeTabId === 'settings') {
+            tabGrades.style.display = 'none';
+            tabSettings.style.display = 'block';
+            loadSettingsToForm(); // Tải lại dữ liệu cấu hình thực tế lên form
+        }
+    }
+
+    if (navGrades) navGrades.addEventListener('click', (e) => { e.preventDefault(); switchTab(navGrades, 'grades'); });
+    if (navSettings) navSettings.addEventListener('click', (e) => { e.preventDefault(); switchTab(navSettings, 'settings'); });
+
+    // --- XỬ LÝ ĐỒNG BỘ LỊCH HỌC QUA POPUP INTERACTIVE ---
+    
+    if (navSchedule) {
+        navSchedule.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // 1. Đổi màu highlight cho Tab Lịch Học
+            [navGrades, navSchedule, navSurvey, navSettings].forEach(nav => {
+                if (nav) nav.classList.remove('active');
+            });
+            navSchedule.classList.add('active');
+
+            // 2. CHỈ HIỂN THỊ FORM NHẬP SỐ TUẦN (Không chạy ngầm gì ở bước này cả)
+            if (modalWeeks) {
+                modalWeeks.style.display = 'flex';
+                if (weeksInput) {
+                    weeksInput.value = '5'; // Điền sẵn số 5 mặc định
+                    weeksInput.focus();
+                    weeksInput.select();
+                }
+            }
+        });
+    }
+
+    // --- HÀM TẮT FORM ---
+    function closeWeeksModal() {
+        if (modalWeeks) modalWeeks.style.display = 'none';
+    }
+
+    if (btnCloseWeeksModal) btnCloseWeeksModal.addEventListener('click', closeWeeksModal);
+    if (modalWeeks) {
+        modalWeeks.addEventListener('click', (e) => {
+            if (e.target === modalWeeks) closeWeeksModal();
+        });
+    }
+
+    // --- EVENT STARTER: KÍCH HOẠT CHẠY NGẦM KHI BẤM "CẬP NHẬT" TẠI FORM ---
+    let isExecutingSync = false;
+    function executeScheduleSync() {
+        if (isExecutingSync || !weeksInput) return;
+        isExecutingSync = true;
+        
+        // Đổi giao diện nút để báo hiệu hệ thống đã nhận lệnh
+        const originalBtnText = btnSubmitWeeksModal.innerText;
+        btnSubmitWeeksModal.innerText = '⏳ Đang khởi động...';
+        btnSubmitWeeksModal.style.opacity = '0.7';
+
+        const totalWeeks = parseInt(weeksInput.value, 10) || 5;
+
+        // Lưu thông số tuần vào Storage cho Ghost Tab đọc
+        chrome.storage.local.set({
+            iuh_sync_weeks_count: totalWeeks,
+            iuh_auto_sync_active: true
+        }, () => {
+            chrome.runtime.sendMessage({ action: "triggerManualScheduleSync" });
+            closeWeeksModal(); // Đóng form điền số
+            
+            // Mở khóa UI chống Spam sau 2 giây
+            setTimeout(() => {
+                isExecutingSync = false;
+                if (btnSubmitWeeksModal) {
+                    btnSubmitWeeksModal.innerText = originalBtnText;
+                    btnSubmitWeeksModal.style.opacity = '1';
+                }
+            }, 2000);
+        });
+    }
+
+    // Lắng nghe sự kiện click hoặc gõ Enter tại form
+    if (btnSubmitWeeksModal) btnSubmitWeeksModal.addEventListener('click', executeScheduleSync);
+    if (weeksInput) {
+        weeksInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                executeScheduleSync();
+            }
+        });
+    }
+
+
+
+
+
+
+    // --- KHỞI CHẠY NGẦM ĐỂ ĐIỀN DỮ LIỆU GỐC CHO VIEW BẢNG ĐIỂM ---
+    chrome.storage.local.get(['iuh_grade_data'], result => {
+        if (result.iuh_grade_data) {
+            globalDashboardData = result.iuh_grade_data;
+            renderDashboard(globalDashboardData);
+        } else {
+            if (typeof triggerSync === 'function') triggerSync();
+        }
+    });
+    
+    const btnSyncGrades = $('btn-sync-grades');
+    if (btnSyncGrades) btnSyncGrades.addEventListener('click', triggerSync);
+}); 
