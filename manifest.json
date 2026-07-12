@@ -32,6 +32,10 @@
     {
       "resources": ["tfjs_model/*", "tf.min.js"],
       "matches": ["*://sv.iuh.edu.vn/*"]
+    },
+    {
+      "resources": ["dashboard/*"],
+      "matches": ["<all_urls>"]
     }
   ]
 }
