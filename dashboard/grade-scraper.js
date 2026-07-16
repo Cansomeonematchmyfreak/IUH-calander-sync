@@ -19,6 +19,11 @@ async function fetchAndProcessGrades() {
         
         const htmlGrades = await resGrades.text();
         const htmlDash = await resDash.text();
+
+        if (htmlGrades.includes('id="frmLogin"') || htmlGrades.includes('dang-nhap')) {
+            console.warn("[IUH Scraper] Phiên đăng nhập hết hạn!");
+            return "REQUIRE_LOGIN";
+        }
         const parser = new DOMParser();
         
         // 1. BÓC TÁCH TÍN CHỈ TỪ TRANG DASHBOARD
