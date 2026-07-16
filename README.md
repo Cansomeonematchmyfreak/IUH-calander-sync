@@ -1,40 +1,46 @@
-# 🔄 IUH Calendar Sync AI (v2.0)
+# 🎓 IUH Alternative Dashboard
 
 ## 📌 Giới thiệu
-**IUH Calendar Sync AI** là một tiện ích mở rộng (*Chrome Extension*) kết hợp với **Google Apps Script** giúp sinh viên trường Đại học Công nghiệp TP.HCM (IUH) tự động quét và đồng bộ lịch học, lịch thi từ website trường (`sv.iuh.edu.vn`) sang **Google Calendar** chỉ trong một cú click chuột hoặc hoàn toàn chạy ngầm định kỳ.
+**IUH Alternative Dashboard** là một tiện ích mở rộng (*Chrome Extension*) sử dụng kiến trúc **Manifest V3**, được thiết kế để thay thế hoàn toàn giao diện mặc định cũ kỹ của cổng thông tin sinh viên Đại học Công nghiệp TP.HCM (IUH). 
 
-Dự án tích hợp mô hình học máy (*Machine Learning*) giải mã Captcha chạy trực tiếp tại Client, giải quyết triệt để bài toán tự động hóa quy trình đăng nhập mà không phụ thuộc vào bên thứ ba.
+Tiến hóa từ dự án đồng bộ lịch học, phiên bản này lột xác thành một **Single Page Application (SPA)** hiện đại, trực quan và chạy 100% ngầm ở phía Client (No-Server). Hệ thống kết hợp kỹ thuật Web Scraping an toàn và trí tuệ nhân tạo (AI) để mang lại trải nghiệm quản lý học tập tối ưu, tự động hóa và bảo mật tuyệt đối cho sinh viên.
 
 ---
 
 ## ✨ Tính năng nổi bật
 
-* 🤖 **AI Captcha Solver:** Tích hợp mô hình trí tuệ nhân tạo (*TensorFlow.js*) tự động nhận diện và bẻ khóa mã Captcha trường (bao gồm cả chữ cái và số) với độ chính xác cao.
-* ⚡ **Tự động hóa hoàn toàn (Auto-Login):** Tùy chọn tự động điền thông tin tài khoản MSSV / Mật khẩu và kích hoạt nút đăng nhập ngay sau khi AI giải xong Captcha.
-* 🎨 **Bảng màu Độc quyền & Thông minh (Auto-Swap UX):**
-    * Đồng bộ chuẩn **11 mã màu** của hệ thống Google Calendar API công khai.
-    * Tự động thay đổi màu sắc hiển thị ngoài Dashboard theo thời gian thực (*Real-time*).
-    * Thuật toán **Hoán đổi màu tự động (Auto-Swap)**: Khi chọn một màu đã bị lớp học khác chiếm dụng, hệ thống tự động đổi chỗ 2 màu cho nhau, loại bỏ hoàn toàn cảm giác khó chịu khi cấu hình.
-* 🤖 **Đồng bộ ngầm định kỳ (Silent Sync Mode):** Tự động bẻ lái điều hướng, cào dữ liệu lịch của 5 tuần học tiếp theo hoàn toàn ẩn danh dưới nền và tự động đóng tab trình duyệt khi hoàn tất.
-* 🛡️ **An toàn & Trực quan:** Chức năng ẩn/hiện mật khẩu ngay trên giao diện cấu hình mướt rượt, giao diện Dashboard bo tròn hiện đại sử dụng các công tắc trượt dạng *Switch Slider*.
+* 🤖 **AI Captcha Solver & Auto-Login:** Kế thừa sức mạnh từ phiên bản trước, tiện ích tích hợp sẵn mô hình Học máy (*TensorFlow.js* thông qua `tf.min.js`) chạy trực tiếp trên trình duyệt để bẻ khóa mã Captcha và tự động đăng nhập mượt mà.
+* 📊 **Quản lý Điểm số & Tiến Độ Học Tập:** 
+  * Tự động gửi lệnh `fetch()` ngầm trang kết quả học tập để cào danh sách ID của tất cả học kỳ.
+  * Lọc bỏ các môn học trùng (chỉ giữ điểm cao nhất của môn cải thiện/học lại).
+  * Tính toán tổng số tín chỉ tích lũy, GPA hệ 10 và hệ 4. Hiển thị thông qua thanh tiến trình (Progress Bar) động.
+* 📈 **Phân Tích Điểm Trung Bình Lớp Học Phần:** Gửi request ngầm mô phỏng hành vi click vào chi tiết môn học. Đếm số lượng sinh viên đạt điểm A, B, C, D, F và tính vị trí xếp hạng. Trực quan hóa dữ liệu bằng biểu đồ cột (Bar Chart) thông qua thư viện `Chart.js` (`libs/chart.umd.js`).
+* 📝 **Khảo Sát Tự Động (Auto Survey):** Quét ngầm các phiếu đánh giá chưa hoàn thành. Tự động điền form với thuật toán trộn ngẫu nhiên tỉ lệ 80-20 giữa mức "Rất hài lòng" và "Hài lòng" nhằm qua mặt hệ thống Bot-detection, sau đó tự động kích hoạt sự kiện `.click()` nộp bài.
+* 🎨 **Thay Thế Giao Diện (UI Overrider):** Chặn đứng quá trình render giao diện gốc của trường ngay khi truy cập `sv.iuh.edu.vn/home.html`, phủ lên một lớp overlay nạp nội dung từ `dashboard/portal.html` với thiết kế Sidebar điều hướng, thẻ Card số liệu và hiệu ứng Dark Mode responsive.
 
 ---
 
-## 🧩 Kiến trúc hoạt động (Workflow)
-``` text
+## 🧩 Kiến trúc hoạt động (No-Server Workflow)
+
+Hệ thống hoạt động hoàn toàn độc lập trên trình duyệt của người dùng, không phụ thuộc vào bất kỳ Server trung gian nào:
+
+```text
 [Website Lịch Trường IUH] 
           │
           ▼
-[Chrome Extension - Thu thập dữ liệu và Giải mã AI]
+[Content Script - Chặn Render UI gốc & Tiêm Portal SPA overlay]
           │
           ▼
-[Gửi yêu cầu POST JSON qua mạng]
+[Bridge.js - Giao tiếp giữa MAIN world và Extension Context]
           │
           ▼
-[Google Apps Script WebApp xử lý logic xóa/tạo]
+[Client Script - Fetch ngầm (Rate Limiting) & Giải mã AI]
           │
           ▼
-[API Ghi dữ liệu lên Google Calendar của Sinh viên]
+[Lưu trữ cục bộ an toàn vào chrome.storage.local (Caching)]
+          │
+          ▼
+[Dashboard SPA - Hiển thị DOM Parser & Vẽ biểu đồ Chart.js]
 ```
 
 ---
@@ -90,15 +96,29 @@ Khi khởi tạo hoặc chưa có cấu hình riêng, hệ thống tự động 
 ## 📂 Cấu trúc thư mục dự án
 
 ```text
-├── manifest.json            # File khai báo quyền và cấu hình Chrome Extension
-├── options.html             # Giao diện Dashboard cấu hình Extension
-├── options.js               # Logic xử lý giao diện Dashboard & Hoán đổi màu sắc thông minh
-├── content.js               # Content Script nhúng vào web trường để cào lịch và chạy AI giải mã
-├── bridge.js                # Cầu nối trung gian luân chuyển dữ liệu giữa Main World và Extension Storage
-├── background.js            # Xử lý các tiến trình ngầm, vòng lặp trigger thời gian định kỳ
-├── tfjs_model/              # Thư mục chứa cấu trúc mạng nơ-ron và trọng số của mô hình AI giải Captcha
-└── gas/
-    └── Code.js              # Mã nguồn xử lý API nhận dữ liệu và gán màu trên Google Apps Script
+iuh-calendar-sync/
+├── dashboard/
+│   ├── grade-scraper.js
+│   ├── portal.css
+│   ├── portal.html
+│   └── portal.js
+├── GAS/
+│   └── Code.js
+├── tfjs_model/
+│   ├── group1-shard1of3.bin
+│   ├── group1-shard2of3.bin
+│   ├── group1-shard3of3.bin
+│   └── model.json
+├── autologin.js
+├── background.js
+├── bridge.js
+├── content.js
+├── manifest.json
+├── options.html
+├── options.js
+├── README.md
+├── survey_agent.js
+└── tf.min.js
 ```
 
 📌 Disclaimer (Miễn trừ trách nhiệm)
