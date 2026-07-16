@@ -4,13 +4,37 @@ chrome.storage.sync.get(['iuhUser', 'iuhPass', 'autoFillInfo', 'autoClickLogin']
 
     // Phân tích tham số để biết có đang chạy đồng bộ ngầm không
     const urlParams = new URLSearchParams(window.location.search);
+    const isGhostTab = urlParams.get('auto_sync_mode') === '1' || sessionStorage.getItem('iuh_auto_sync_active') === 'true';
     if (urlParams.get('auto_sync_mode') === '1') {
         sessionStorage.setItem('iuh_auto_sync_active', 'true');
     }
 
+    // =========================================================================
+    // 🛡️ TÍNH NĂNG: LÀM MỚI TRANG NẾU LỖI ĐĂNG NHẬP (MAX 5 LẦN)
+    // =========================================================================
+    let retryCount = parseInt(sessionStorage.getItem('iuh_login_retry_count') || '0', 10);
+    
+    if (retryCount >= 5) {
+        console.warn("[IUH Sync] 🔄 Đã vượt quá 5 lần thử đăng nhập. Đang tiến hành Refresh...");
+        
+        // Reset bộ đếm VÀ XÓA LUÔN CỜ AUTO SYNC TRONG SESSION ĐỂ CẮT VÒNG LẶP
+        sessionStorage.removeItem('iuh_login_retry_count');
+        sessionStorage.removeItem('iuh_auto_sync_active');
+        
+        setTimeout(() => {
+            // Thay vì reload giữ params cũ, ta đẩy thẳng về trang chủ để cắt đứt URL Params (?auto_sync_mode=1)
+            window.location.href = window.location.pathname; 
+        }, 1000); 
+        
+        return; 
+    }
+    
+    // Xóa dòng gán trùng lặp (duplicate) trong code cũ của bạn
+    sessionStorage.setItem('iuh_login_retry_count', (retryCount + 1).toString());
+    // =========================================================================
+
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Lấy đúng Element từ trang đăng nhập mới
     const userField = document.querySelector('#UserName');
     const passField = document.querySelector('#Password'); 
     const loginBtn = document.querySelector('.authfy-panel.active #form-login input[type="submit"]');
@@ -28,13 +52,13 @@ chrome.storage.sync.get(['iuhUser', 'iuhPass', 'autoFillInfo', 'autoClickLogin']
             userField.dispatchEvent(new Event('change', { bubbles: true }));
             passField.dispatchEvent(new Event('change', { bubbles: true }));
             
-            console.log("[IUH Sync] 👤 Đã tự động điền MSSV & Mật khẩu.");
+            console.log(`[IUH Sync] 👤 Đã tự động điền MSSV & Mật khẩu (Lần thử: ${retryCount + 1}/5).`);
             hasFilledSuccessfully = true;
         } else {
             console.log("[IUH Sync] ❌ Không tìm thấy ô nhập liệu, có thể giao diện đã thay đổi.");
         }
     } else {
-        hasFilledSuccessfully = true; // Bỏ qua điền tự động
+        hasFilledSuccessfully = true; 
     }
 
     // 2. Chờ AI giải mã xong thì Click đăng nhập

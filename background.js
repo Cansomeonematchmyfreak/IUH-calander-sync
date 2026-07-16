@@ -1,17 +1,35 @@
 // background.js
+
 const SYNC_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 ngày
-
-let isSyncTabSpawning = false; // Cờ khóa chống mở 2 tab cùng lúc
+let isSyncTabSpawning = false; // Cờ khóa chống mở nhiều tab cùng lúc
 
 // ==============================================================================
-// 1. HỆ THỐNG HẸN GIỜ (ALARM) TỰ ĐỘNG CHẠY NGẦM ĐỊNH KỲ
+// 0. DỌN DẸP RÁC (ORPHANED STATES) KHI KHỞI ĐỘNG TRÌNH DUYỆT
 // ==============================================================================
+
+// Hàm dùng chung để dọn dẹp state tồn đọng từ phiên trước
+function clearZombieStates() {
+    chrome.storage.local.remove(['iuh_auto_sync_active', 'runningSyncTabId'], () => {
+        console.log("[IUH Background] 🧹 Đã dọn dẹp các cờ hiệu chạy ngầm tồn đọng.");
+    });
+}
+
+// Chạy khi Extension được cài mới hoặc cập nhật
 chrome.runtime.onInstalled.addListener(() => {
     // Cứ mỗi 60 phút hệ thống sẽ thức dậy kiểm tra 1 lần xem đã quá 7 ngày chưa
     chrome.alarms.create("weeklyClientSyncCheck", { periodInMinutes: 60 });
-    console.log("[IUH Background] Đã khởi tạo bộ hẹn giờ tự động đồng bộ lịch.");
+    console.log("[IUH Background] ⏱️ Đã khởi tạo bộ hẹn giờ tự động đồng bộ lịch.");
+    clearZombieStates();
 });
 
+// Chạy mỗi khi người dùng mở lại Google Chrome
+chrome.runtime.onStartup.addListener(() => {
+    clearZombieStates();
+});
+
+// ==============================================================================
+// 1. HỆ THỐNG HẸN GIỜ (ALARM) TỰ ĐỘNG CHẠY NGẦM ĐỊNH KỲ (LỊCH HỌC)
+// ==============================================================================
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === "weeklyClientSyncCheck") {
         executePeriodicSync();
@@ -39,13 +57,12 @@ function executePeriodicSync() {
                     chrome.tabs.remove(localData.runningSyncTabId, () => { const err = chrome.runtime.lastError; });
                 }
                 
-                // Mở Ghost Tab chạy ngầm. 
-                // Content.js sẽ tự động đọc số tuần (iuh_sync_weeks_count) lưu từ lần cuối bạn nhập ở UI
+                // Mở Ghost Tab chạy ngầm để đồng bộ lịch
                 chrome.storage.local.set({ iuh_auto_sync_active: true }, () => {
                     chrome.tabs.create({
                         url: "https://sv.iuh.edu.vn/lich-theo-tuan.html",
-                        active: false, // 🟢 CHẠY NGẦM: Không chiếm màn hình người dùng
-                        pinned: true   // 📌 CHẠY NGẦM: Ghim vào góc nhỏ
+                        active: false, // CHẠY NGẦM: Không chiếm focus màn hình của user
+                        pinned: true   // CHẠY NGẦM: Ghim nhỏ lại ở góc
                     }, (tab) => {
                         chrome.storage.local.set({ runningSyncTabId: tab.id });
                         setTimeout(() => { isSyncTabSpawning = false; }, 2000);
@@ -57,11 +74,13 @@ function executePeriodicSync() {
 }
 
 // ==============================================================================
-// 2. BỘ LẮNG NGHE TIN NHẮN TỪ DASHBOARD (ĐIỀU KHIỂN THỦ CÔNG & DỌN DẸP TAB)
+// 2. BỘ LẮNG NGHE TIN NHẮN TỪ DASHBOARD (ĐIỀU KHIỂN & AUTOMATION)
 // ==============================================================================
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
-    // ĐÓNG GHOST TAB LỊCH HỌC (Áp dụng cho cả luồng tự động và thủ công)
+    // ---------------------------------------------------------
+    // [MODULE 1: LỊCH HỌC] ĐÓNG GHOST TAB (Tự động & Thủ công)
+    // ---------------------------------------------------------
     if (request.action === "syncComplete" || request.action === "manualSyncComplete") {
         console.log(`[IUH Background] Xử lý đóng Ghost Tab sau sự kiện: ${request.action}`);
         
@@ -75,14 +94,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 chrome.tabs.update(tabId, { pinned: false }, () => {
                     chrome.tabs.remove(tabId, () => {
                         chrome.storage.local.remove('runningSyncTabId');
-                        console.log("[IUH Background] ✅ Đã dọn dẹp Ghost Tab thành công.");
+                        console.log("[IUH Background] ✅ Đã dọn dẹp Ghost Tab đồng bộ lịch thành công.");
                     });
                 });
             }
         });
     }
 
-    // KÍCH HOẠT CÀO LỊCH HỌC TỪ DASHBOARD
+    // ---------------------------------------------------------
+    // [MODULE 1: LỊCH HỌC] KÍCH HOẠT CÀO LỊCH HỌC TỪ DASHBOARD
+    // ---------------------------------------------------------
     if (request.action === "triggerManualScheduleSync") {
         if (isSyncTabSpawning) return;
         isSyncTabSpawning = true;
@@ -106,33 +127,101 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
     }
 
-    // LUỒNG KHẢO SÁT & AUTO-LOGIN GIỮ NGUYÊN BÊN DƯỚI...
+    // ---------------------------------------------------------
+    // [MODULE 2: KHẢO SÁT TỰ ĐỘNG] CÁC LỆNH ĐIỀU PHỐI KHẢO SÁT
+    // ---------------------------------------------------------
     if (request.action === "triggerAutoSurvey") {
-        chrome.tabs.create({ url: "https://sv.iuh.edu.vn/sinh-vien/danh-sach-khao-sat.html", active: false, pinned: true });
+        console.log("[IUH Background] 📝 Kích hoạt luồng khảo sát tự động.");
+        chrome.tabs.create({ 
+            url: "https://sv.iuh.edu.vn/sinh-vien/danh-sach-khao-sat.html", 
+            active: false, 
+            pinned: true 
+        });
     }
+
     if (request.action === "openAndPinSurveyTab") {
-        chrome.tabs.create({ url: request.url, pinned: true, active: true }, (tab) => { sendResponse({ success: true, tabId: tab.id }); });
-        return true; 
+        chrome.tabs.create({ url: request.url, pinned: true, active: true }, (tab) => { 
+            sendResponse({ success: true, tabId: tab.id }); 
+        });
+        return true; // Giữ cổng kết nối mở cho sendResponse bất đồng bộ
     }
+
     if (request.action === "closeSurveyTab") {
         const tabId = sender.tab ? sender.tab.id : null;
-        if (tabId) { chrome.tabs.update(tabId, { pinned: false }, () => { chrome.tabs.remove(tabId); }); }
+        if (tabId) { 
+            chrome.tabs.update(tabId, { pinned: false }, () => { 
+                chrome.tabs.remove(tabId); 
+            }); 
+        }
     }
+
+    // ---------------------------------------------------------
+    // [MODULE 3: SESSION RENEW] GHOST TAB TỰ ĐĂNG NHẬP NGẦM
+    // ---------------------------------------------------------
     if (request.action === "renewSessionViaGhostTab") {
-        chrome.tabs.create({ url: "https://sv.iuh.edu.vn/home.html?auto_sync_mode=1", active: false, pinned: true }, (tab) => {
+        console.log("[IUH Background] 🔑 Kích hoạt Ghost Tab khôi phục Session đăng nhập.");
+        
+        // Lưu lại ID của tab Dashboard ra lệnh để lát nữa tự động quay về (Focus)
+        const dashboardTabId = sender.tab ? sender.tab.id : null;
+
+        chrome.tabs.create({
+            url: "https://sv.iuh.edu.vn/ket-qua-hoc-tap.html?auto_sync_mode=1",
+            active: true, // 🚨 CHỐT HẠ: Bắt buộc mở nổi tab lên để CPU không bị bóp hiệu năng giải AI Captcha
+            pinned: true   
+        }, (tab) => {
             const cookieCheckListener = (tabId, changeInfo, updatedTab) => {
-                if (tabId === tab.id && changeInfo.status === 'complete' && updatedTab.url.includes('/home.html')) {
-                    chrome.tabs.remove(tabId);
-                    chrome.tabs.onUpdated.removeListener(cookieCheckListener);
-                    chrome.runtime.sendMessage({ action: "sessionRenewedSuccessfully" });
-                }
+                if (tabId !== tab.id) return;
+
+                // Lấy URL thực tế an toàn thông qua Chrome Tabs API
+                chrome.tabs.get(tabId, (currentTab) => {
+                    if (chrome.runtime.lastError || !currentTab || !currentTab.url) return;
+
+                    const currentUrl = currentTab.url.toLowerCase();
+                    
+                    // Danh sách các từ khóa nhận dạng trang đăng nhập
+                    const isLoginRoute = currentUrl.includes('dang-nhap') || 
+                                         currentUrl.includes('login') || 
+                                         currentUrl.includes('auth');
+
+                    // 🔥 Nếu đã vượt qua trang đăng nhập và tiến vào domain trường thành công
+                    if (currentUrl.includes('sv.iuh.edu.vn') && !isLoginRoute) {
+                        console.log(`[IUH Background] ✅ Đăng nhập thành công tại: ${currentUrl}. Tiến hành xóa Ghost Tab...`);
+                        
+                        // 1. Gỡ listener ngay lập tức tránh trùng lặp
+                        chrome.tabs.onUpdated.removeListener(cookieCheckListener);
+                        
+                        // 2. Chờ 1.5 giây để ghi Cookie ổn định
+                        setTimeout(() => {
+                            // 3. Đóng Ghost Tab dọn RAM
+                            chrome.tabs.update(tabId, { pinned: false }, () => {
+                                chrome.tabs.remove(tabId, () => {
+                                    
+                                    // 4. Phản hồi trực tiếp về Portal.js để kích hoạt cào điểm
+                                    sendResponse({ success: true });
+
+                                    // 5. Tự động focus quay lại màn hình Dashboard của sinh viên
+                                    if (dashboardTabId) {
+                                        chrome.tabs.update(dashboardTabId, { active: true }, () => {
+                                            const err = chrome.runtime.lastError;
+                                        });
+                                    }
+                                });
+                            });
+                        }, 1500);
+                    }
+                });
             };
             chrome.tabs.onUpdated.addListener(cookieCheckListener);
         });
+        
+        return true; // 🚨 BẮT BUỘC có dòng này để giữ cổng giao tiếp mở chờ tiến trình bất đồng bộ phản hồi
     }
 });
 
-// Mở Dashboard khi Click Icon
+// ==============================================================================
+// 3. BẮT SỰ KIỆN KHI CLICK VÀO ICON CỦA EXTENSION TRÊN THANH TOOLBAR
+// ==============================================================================
 chrome.action.onClicked.addListener((tab) => {
+    // Mở trang SPA Dashboard mới thay vì trang options cũ
     chrome.tabs.create({ url: chrome.runtime.getURL("dashboard/portal.html") });
 });
