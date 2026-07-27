@@ -3,48 +3,103 @@
 
 let globalDashboardData = null;
 let progressState = { current: 0, total: 130 };
+let isSyncing = false;
 
-/* ============================================================
-   1. HẰNG SỐ & TIỆN ÍCH DÙNG CHUNG
-   ============================================================ */
-const SVG_R_OUTER = 50, SVG_R_INNER = 35;
-const C_OUTER = 2 * Math.PI * SVG_R_OUTER, C_INNER = 2 * Math.PI * SVG_R_INNER;
+const GOOGLE_COLOR_OPTIONS_HTML = `
+    <option value="1">Lavender (Tím nhạt)</option>
+    <option value="2">Sage (Xanh lá nhạt)</option>
+    <option value="3">Grape (Tím đậm)</option>
+    <option value="4">Flamingo (Hồng)</option>
+    <option value="5">Banana (Vàng nhạt)</option>
+    <option value="6">Tangerine (Cam)</option>
+    <option value="7">Peacock (Xanh lơ)</option>
+    <option value="8">Graphite (Xám)</option>
+    <option value="9">Blueberry (Xanh dương)</option>
+    <option value="10">Basil (Xanh lá đậm)</option>
+    <option value="11">Tomato (Đỏ)</option>
+`;
 
-function $(id) { return document.getElementById(id); }
+const TIET_TIME = {
+    1: "06:30", 2: "07:20", 3: "08:10", 4: "09:10", 5: "10:00", 6: "10:50",
+    7: "12:30", 8: "13:20", 9: "14:10", 10: "15:10", 11: "16:00", 12: "16:50",
+    13: "18:00", 14: "18:50", 15: "19:50", 16: "20:40", 17: "21:30", 18: "22:20"
+};
 
-function formatDiem(value, digits = 2) { return value !== null && value !== undefined && !isNaN(value) ? value.toFixed(digits) : '-'; }
+const GOOGLE_COLORS = {
+    "ly-thuyet": "1",
+    "thuc-hanh": "2",
+    "truc-tuyen": "7",
+    "thi": "11",
+    "tam-ngung": "8"
+};
+
+function $(id) {
+    return document.getElementById(id);
+}
+
+function formatDiem(value, digits = 2) {
+    return value !== null && value !== undefined && !isNaN(value) ? Number(value).toFixed(digits) : '-';
+}
+
 function scoreClassName(value) {
     if (value === '' || value === null || value === undefined) return '';
     const num = typeof value === 'number' ? value : parseFloat(value);
     if (isNaN(num)) return '';
     return num <= 5 ? 'score-low' : 'score-normal';
 }
+
 function setScoreColorClass(el, value) {
+    if (!el) return;
     el.classList.remove('score-low', 'score-normal');
     const cls = scoreClassName(value);
     if (cls) el.classList.add(cls);
 }
+
 function setGradeLetterClass(el, chu) {
+    if (!el) return;
     el.classList.remove('grade-a', 'grade-b', 'grade-c', 'grade-d', 'grade-f');
     switch (chu) {
-        case 'A+': case 'A': el.classList.add('grade-a'); break;
-        case 'B+': case 'B': el.classList.add('grade-b'); break;
-        case 'C+': case 'C': el.classList.add('grade-c'); break;
-        case 'D+': case 'D': el.classList.add('grade-d'); break;
-        default: el.classList.add('grade-f');
+        case 'A+':
+        case 'A':
+            el.classList.add('grade-a');
+            break;
+        case 'B+':
+        case 'B':
+            el.classList.add('grade-b');
+            break;
+        case 'C+':
+        case 'C':
+            el.classList.add('grade-c');
+            break;
+        case 'D+':
+        case 'D':
+            el.classList.add('grade-d');
+            break;
+        default:
+            el.classList.add('grade-f');
+            break;
     }
 }
 
-/* ============================================================
-   2. QUY ĐỔI ĐIỂM & TÍNH TOÁN
-   ============================================================ */
-function roundGPA(sumDiem, tongTC) { return tongTC ? (Math.round((sumDiem / tongTC) * 100) / 100).toFixed(2) : '0.00'; }
-function getXepLoaiHocLuc(gpa4) {
-    if (gpa4 >= 3.6) return 'Xuất sắc'; if (gpa4 >= 3.2) return 'Giỏi';
-    if (gpa4 >= 2.5) return 'Khá'; if (gpa4 >= 2.0) return 'Trung bình';
-    if (gpa4 >= 1.0) return 'Yếu'; return 'Kém';
+function roundGPA(sumDiem, tongTC) {
+    if (!tongTC) return '0.00';
+    return (Math.round((sumDiem / tongTC) * 100) / 100).toFixed(2);
 }
+
+function getXepLoaiHocLuc(gpa4) {
+    if (gpa4 >= 3.6) return 'Xuất sắc';
+    if (gpa4 >= 3.2) return 'Giỏi';
+    if (gpa4 >= 2.5) return 'Khá';
+    if (gpa4 >= 2.0) return 'Trung bình';
+    if (gpa4 >= 1.0) return 'Yếu';
+    return 'Kém';
+}
+
 function quyDoiHeChuVaHe4(diem10, isTotNghiep = false) {
+    if (diem10 === null || diem10 === undefined || isNaN(diem10)) {
+        return { chu: '', he4: null, xepLoai: '', isDat: false };
+    }
+
     if (isTotNghiep && diem10 < 5.0) return { chu: 'F', he4: 0.0, xepLoai: 'Chưa đạt', isDat: false };
     if (diem10 >= 9.0) return { chu: 'A+', he4: 4.0, xepLoai: 'Xuất sắc', isDat: true };
     if (diem10 >= 8.5) return { chu: 'A', he4: 3.8, xepLoai: 'Giỏi', isDat: true };
@@ -58,363 +113,490 @@ function quyDoiHeChuVaHe4(diem10, isTotNghiep = false) {
 }
 
 function tinhDiemTongKet({ tkVals, thVals, diemGK, diemThi, soTC, isTotNghiep, isThucHanhThuan, isTichHop }) {
-    const diemTK = tkVals.length > 0 ? lamTronDiemIUH(tkVals.reduce((a, b) => a + b, 0) / tkVals.length) : null;
-    
-    // 🚨 RÀNG BUỘC 1: Vắng 1 buổi Thực hành (có 1 cột 0đ) -> Rớt toàn bộ môn (Cấm thi)
-    let diemTH = null;
-    if (thVals.length > 0) {
-        if (thVals.includes(0)) {
-            diemTH = 0.0; // Ép điểm TH về 0 ngay lập tức
-        } else {
-            diemTH = lamTronDiemIUH(thVals.reduce((a, b) => a + b, 0) / thVals.length);
-        }
-    }
+    const diemTK_TongKet = tkVals.length > 0 ? lamTronDiemIUH(tkVals.reduce((a, b) => a + b, 0) / tkVals.length) : null;
+    const diemTH_TongKet = thVals.length > 0 ? lamTronDiemIUH(thVals.reduce((a, b) => a + b, 0) / thVals.length) : null;
 
-    // Xử lý môn Đồ án / Khóa luận tốt nghiệp
     if (isTotNghiep) {
         return diemThi !== null ? diemThi : null;
     }
 
-    // Xử lý môn chỉ có Thực hành (Thể dục, GDQP...)
     if (isThucHanhThuan) {
-        return diemTH;
+        return diemTH_TongKet;
     }
 
-    // Xử lý môn Tích hợp (Lý thuyết + Thực hành)
     if (isTichHop) {
-        // 🚨 RÀNG BUỘC 2: Điểm thi cuối kỳ < 3.0 là ĐIỂM LIỆT, không cần tính trung bình
-        const diemLT = (diemThi !== null && diemThi < 3.0) 
-            ? diemThi 
-            : lamTronDiemIUH(0.5 * (diemThi || 0) + 0.3 * (diemGK || 0) + 0.2 * (diemTK || 0));
+        const diemLT = (diemThi !== null && diemThi < 3.0)
+            ? diemThi
+            : lamTronDiemIUH(0.5 * (diemThi || 0) + 0.3 * (diemGK || 0) + 0.2 * (diemTK_TongKet || 0));
 
-        // 🚨 CHỐT CHẶN: Nếu Thực hành liệt (< 3.0) HOẶC Lý thuyết liệt (< 3.0) -> Ép rớt môn
-        if ((diemTH !== null && diemTH < 3.0) || (diemLT !== null && diemLT < 3.0)) {
-            // Trả về điểm thấp nhất để hệ thống quy đổi ra F (Rớt)
-            return diemThi !== null ? Math.min(diemLT, diemTH !== null ? diemTH : 0) : 0.0;
+        if ((diemTH_TongKet !== null && diemTH_TongKet < 3.0) || diemLT === 0 || diemTH_TongKet === 0) {
+            return 0.0;
         }
-
-        // Nếu qua hết các ải điểm liệt -> Tính trung bình tín chỉ
-        if (diemTH !== null && diemThi !== null) {
-            const j_lt = soTC > 1 ? soTC - 1 : 1; // Trọng số tín chỉ lý thuyết
-            const j_th = 1;                       // Trọng số tín chỉ thực hành
-            return parseFloat((((diemLT * j_lt) + diemTH) / soTC).toFixed(1));
+        if (diemTH_TongKet !== null && diemThi !== null) {
+            const j_lt = soTC > 1 ? soTC - 1 : 1;
+            const j_th = 1;
+            return parseFloat(((diemLT * j_lt + diemTH_TongKet * j_th) / soTC).toFixed(1));
         }
         return null;
     }
 
-    // Xử lý môn Lý thuyết thông thường
-    if (diemThi !== null && diemThi < 3.0) {
-        return diemThi; // Bắt điểm liệt cuối kỳ
+    if (diemThi !== null && diemThi < 3.0) return diemThi;
+    if (diemThi !== null && diemGK !== null && diemTK_TongKet !== null) {
+        return parseFloat((0.5 * diemThi + 0.3 * diemGK + 0.2 * diemTK_TongKet).toFixed(1));
     }
-    if (diemThi !== null && diemGK !== null && diemTK !== null) {
-        return parseFloat((0.5 * diemThi + 0.3 * diemGK + 0.2 * diemTK).toFixed(1));
-    }
-    
+
     return null;
 }
 
-/* ============================================================
-   3. RENDER UI BẢNG ĐIỂM & SVG
-   ============================================================ */
 function resetProgressText() {
-    $('val-tin-chi').innerText = `${progressState.current}/${progressState.total}`;
-    $('val-tin-chi').style.color = '#f8fafc';
-    $('lbl-tin-chi').innerText = 'Tín chỉ';
+    const val = $('val-tin-chi');
+    const lbl = $('lbl-tin-chi');
+    if (!val || !lbl) return;
+    val.innerText = `${progressState.current}/${progressState.total}`;
+    val.style.color = '#f8fafc';
+    lbl.innerText = 'Tín chỉ';
 }
+
 function updateProgressDisplay() {
+    const circleCurrent = $('svg-circle-current');
+    if (!circleCurrent) return;
     const percent = progressState.total ? Math.min(progressState.current / progressState.total, 1) : 0;
-    $('svg-circle-current').style.strokeDashoffset = C_INNER - percent * C_INNER;
+    circleCurrent.style.strokeDashoffset = (2 * Math.PI * 35) - percent * (2 * Math.PI * 35);
     resetProgressText();
 }
+
 function renderProgressChart(creditInfo) {
     progressState.current = creditInfo ? creditInfo.current : 0;
     progressState.total = creditInfo ? creditInfo.total : 130;
-    $('svg-circle-total').style.strokeDasharray = C_OUTER;
-    $('svg-circle-total').style.strokeDashoffset = 0;
-    $('svg-circle-current').style.strokeDasharray = C_INNER;
+
+    const circleTotal = $('svg-circle-total');
+    const circleCurrent = $('svg-circle-current');
+    if (!circleTotal || !circleCurrent) return;
+
+    const C_OUTER = 2 * Math.PI * 50;
+    const C_INNER = 2 * Math.PI * 35;
+
+    circleTotal.style.strokeDasharray = C_OUTER;
+    circleTotal.style.strokeDashoffset = 0;
+    circleCurrent.style.strokeDasharray = C_INNER;
+    circleCurrent.style.strokeDashoffset = C_INNER;
+
     updateProgressDisplay();
+
+    circleTotal.onmouseenter = () => {
+        const val = $('val-tin-chi');
+        const lbl = $('lbl-tin-chi');
+        if (!val || !lbl) return;
+        val.innerText = progressState.total;
+        val.style.color = '#00a8ff';
+        lbl.innerText = 'Tổng TC';
+    };
+
+    circleCurrent.onmouseenter = () => {
+        const val = $('val-tin-chi');
+        const lbl = $('lbl-tin-chi');
+        if (!val || !lbl) return;
+        const percent = progressState.total ? Math.min(progressState.current / progressState.total, 1) : 0;
+        val.innerText = `${(percent * 100).toFixed(1)}%`;
+        val.style.color = '#32cd32';
+        lbl.innerText = 'Hoàn thành';
+    };
+
+    circleTotal.onmouseleave = resetProgressText;
+    circleCurrent.onmouseleave = resetProgressText;
 }
 
 function buildScoreInputCell(value, extraClass) {
     const v = value !== null && value !== undefined ? value : '';
     const classes = ['edit-input', extraClass, scoreClassName(v)].filter(Boolean).join(' ');
-    // 🚨 THÊM data-ori-val="${v}" ĐỂ LƯU GIỮ GIÁ TRỊ GỐC LÚC MỚI RENDER
-    return `<td class="text-center" style="padding: 4px;"><input type="number" step="0.1" class="${classes}" value="${v}" data-ori-val="${v}"></td>`;
+    return `<td class="text-center" style="padding: 4px;">
+        <input type="number" step="0.1" class="${classes}" value="${v}" data-ori-val="${v}">
+    </td>`;
 }
+
 function buildSubjectRow(sub, semIndex) {
     const tr = document.createElement('tr');
     tr.className = 'subject-row';
-    tr.dataset.semIdx = semIndex; tr.dataset.mahp = sub.maHP; tr.dataset.tc = sub.soTC;
-    tr.dataset.excluded = sub.isExcludedFromGPA; tr.dataset.istichhop = sub.isTichHop;
-    tr.dataset.isthuchanhthuan = sub.isThucHanhThuan; tr.dataset.istotnghiep = sub.isTotNghiep;
+    tr.dataset.semIdx = semIndex;
+    tr.dataset.mahp = sub.maHP;
+    tr.dataset.tc = sub.soTC;
+    tr.dataset.excluded = sub.isExcludedFromGPA;
+    tr.dataset.istichhop = sub.isTichHop;
+    tr.dataset.isthuchanhthuan = sub.isThucHanhThuan;
+    tr.dataset.istotnghiep = sub.isTotNghiep;
 
-    const tkHtml = Array.from({ length: 6 }, (_, i) => buildScoreInputCell(sub.tk && sub.tk[i] !== undefined ? sub.tk[i] : null, 'tk-input')).join('');
-    const thHtml = Array.from({ length: 4 }, (_, i) => buildScoreInputCell(sub.th && sub.th[i] !== undefined ? sub.th[i] : null, 'th-input')).join('');
+    const tkHtml = Array.from({ length: 6 }, (_, i) =>
+        buildScoreInputCell(sub.tk && sub.tk[i] !== undefined ? sub.tk[i] : null, 'tk-input')
+    ).join('');
+    const thHtml = Array.from({ length: 4 }, (_, i) =>
+        buildScoreInputCell(sub.th && sub.th[i] !== undefined ? sub.th[i] : null, 'th-input')
+    ).join('');
 
     tr.innerHTML = `
         <td>${sub.maHP}</td>
-        <td class="font-medium">${sub.tenHP}${sub.isExcludedFromGPA ? `<br><span style="font-size: 10px; color: var(--text-muted);">(Không tính GPA)</span>` : ''}</td>
+        <td class="font-medium">${sub.tenHP}${sub.isExcludedFromGPA ? '<br><span style="font-size: 10px; color: var(--text-muted);">(Không tính GPA)</span>' : ''}</td>
         <td class="text-center font-bold">${sub.soTC}</td>
-        ${tkHtml}${thHtml}
-        ${buildScoreInputCell(sub.diemGK, 'gk-input')}${buildScoreInputCell(sub.diemThi, 'ck-input')}
+        ${tkHtml}
+        ${thHtml}
+        ${buildScoreInputCell(sub.diemGK, 'gk-input')}
+        ${buildScoreInputCell(sub.diemThi, 'ck-input')}
         <td class="text-center font-bold cell-he10">${formatDiem(sub.diem10)}</td>
         <td class="text-center font-bold cell-he4">${formatDiem(sub.diem4)}</td>
         <td class="text-center font-bold cell-chu">${sub.diemChu || '-'}</td>
         <td class="text-center font-medium cell-xl">${sub.xepLoai || '-'}</td>
         <td class="text-center cell-dat">${sub.isDat ? '<span style="color: var(--success);">✅</span>' : '<span style="color: var(--danger);">❌</span>'}</td>
     `;
+
     setScoreColorClass(tr.querySelector('.cell-he10'), sub.diem10);
     setScoreColorClass(tr.querySelector('.cell-he4'), sub.diem10);
     setGradeLetterClass(tr.querySelector('.cell-chu'), sub.diemChu);
-    tr.querySelectorAll('.edit-input').forEach(inp => inp.addEventListener('input', () => simulateRowCalculation(tr)));
+
+    tr.querySelectorAll('.edit-input').forEach(inp => {
+        inp.addEventListener('input', () => simulateRowCalculation(tr));
+    });
+
     return tr;
 }
+
 function renderSemesters(semesters) {
     const tbody = $('grade-table-body');
+    if (!tbody) return;
+
     semesters.forEach((sem, semIndex) => {
-        if (!sem.subjects.length) return;
-        const trH = document.createElement('tr'); trH.innerHTML = `<td colspan="20" style="background: rgba(59, 130, 246, 0.1); color: var(--primary); font-weight: bold;">📚 ${sem.semesterName}</td>`;
-        tbody.appendChild(trH);
+        if (!sem.subjects || !sem.subjects.length) return;
+
+        const header = document.createElement('tr');
+        header.innerHTML = `<td colspan="20" style="background: rgba(59, 130, 246, 0.1); color: var(--primary); font-weight: bold;">📚 ${sem.semesterName}</td>`;
+        tbody.appendChild(header);
+
         sem.subjects.forEach(sub => tbody.appendChild(buildSubjectRow(sub, semIndex)));
-        const trS = document.createElement('tr');
-        trS.innerHTML = `<td colspan="20" style="background-color: rgba(255, 255, 255, 0.02); padding: 16px 24px; border-bottom: 2px solid var(--border-color);"><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13.5px; color: var(--text-muted);"><div><span style="color: var(--text-main);">TB Học kỳ (Hệ 10):</span> <strong class="text-orange" id="sem-gpa10-${semIndex}">--</strong></div><div><span style="color: var(--text-main);">TB Học kỳ (Hệ 4):</span> <strong class="text-orange" id="sem-gpa4-${semIndex}">--</strong></div><div><span style="color: var(--text-main);">TB Tích lũy (Hệ 10):</span> <strong class="text-orange" id="cum-gpa10-${semIndex}">--</strong></div><div><span style="color: var(--text-main);">TB Tích lũy (Hệ 4):</span> <strong class="text-orange" id="cum-gpa4-${semIndex}">--</strong></div></div></td>`;
-        tbody.appendChild(trS);
+
+        const summary = document.createElement('tr');
+        summary.innerHTML = `
+            <td colspan="20" style="background-color: rgba(255,255,255,0.02); padding: 16px 24px; border-bottom: 2px solid var(--border-color);">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13.5px; color: var(--text-muted);">
+                    <div><span style="color: var(--text-main);">TB Học kỳ (Hệ 10):</span> <strong class="text-orange" id="sem-gpa10-${semIndex}">--</strong></div>
+                    <div><span style="color: var(--text-main);">TB Học kỳ (Hệ 4):</span> <strong class="text-orange" id="sem-gpa4-${semIndex}">--</strong></div>
+                    <div><span style="color: var(--text-main);">TB Tích lũy (Hệ 10):</span> <strong class="text-orange" id="cum-gpa10-${semIndex}">--</strong></div>
+                    <div><span style="color: var(--text-main);">TB Tích lũy (Hệ 4):</span> <strong class="text-orange" id="cum-gpa4-${semIndex}">--</strong></div>
+                </div>
+            </td>`;
+        tbody.appendChild(summary);
     });
 }
+
 function renderDashboard(data) {
-    $('grade-table-body').innerHTML = '';
+    const tbody = $('grade-table-body');
+    if (!tbody || !data) return;
+    tbody.innerHTML = '';
     renderProgressChart(data.creditInfo);
-    renderSemesters(data.semesters);
+    renderSemesters(data.semesters || []);
     recalculateOverallGPA();
 }
 
-/* ============================================================
-   4. TÍNH TOÁN & MÔ PHỎNG REALTIME
-   ============================================================ */
 function simulateRowCalculation(tr) {
-    const readInputs = selector => Array.from(tr.querySelectorAll(selector)).map(inp => parseFloat(inp.value)).filter(v => !isNaN(v));
-    const diemGK = isNaN(parseFloat(tr.querySelector('.gk-input').value)) ? null : parseFloat(tr.querySelector('.gk-input').value);
-    const diemThi = isNaN(parseFloat(tr.querySelector('.ck-input').value)) ? null : parseFloat(tr.querySelector('.ck-input').value);
-    
+    const readInputs = selector =>
+        Array.from(tr.querySelectorAll(selector))
+            .map(inp => parseFloat(inp.value))
+            .filter(v => !isNaN(v));
+
+    const gkInput = tr.querySelector('.gk-input');
+    const ckInput = tr.querySelector('.ck-input');
+
+    const diemGK = gkInput && !isNaN(parseFloat(gkInput.value)) ? parseFloat(gkInput.value) : null;
+    const diemThi = ckInput && !isNaN(parseFloat(ckInput.value)) ? parseFloat(ckInput.value) : null;
+
     const diem10 = tinhDiemTongKet({
-        tkVals: readInputs('.tk-input'), thVals: readInputs('.th-input'), diemGK, diemThi,
-        soTC: parseInt(tr.dataset.tc, 10), isTotNghiep: tr.dataset.istotnghiep === 'true',
-        isThucHanhThuan: tr.dataset.isthuchanhthuan === 'true', isTichHop: tr.dataset.istichhop === 'true'
+        tkVals: readInputs('.tk-input'),
+        thVals: readInputs('.th-input'),
+        diemGK,
+        diemThi,
+        soTC: parseInt(tr.dataset.tc, 10),
+        isTotNghiep: tr.dataset.istotnghiep === 'true',
+        isThucHanhThuan: tr.dataset.isthuchanhthuan === 'true',
+        isTichHop: tr.dataset.istichhop === 'true'
     });
-    const quyDoi = diem10 !== null ? quyDoiHeChuVaHe4(diem10, tr.dataset.istotnghiep === 'true') : { chu: '-', he4: null, xepLoai: '-', isDat: false };
-    
-    // 🚨 KIỂM TRA SỰ THAY ĐỔI ĐỂ BẬT/TẮT HIỆU ỨNG MÀU VÀNG & IN NGHIÊNG
+
+    const quyDoi = diem10 !== null
+        ? quyDoiHeChuVaHe4(diem10, tr.dataset.istotnghiep === 'true')
+        : { chu: '', he4: null, xepLoai: '', isDat: false };
+
     let isRowModified = false;
     tr.querySelectorAll('.edit-input').forEach(inp => {
-        // So sánh giá trị hiện tại (value) với giá trị gốc (data-ori-val)
         if (inp.value !== inp.getAttribute('data-ori-val')) {
             isRowModified = true;
         }
         setScoreColorClass(inp, inp.value);
     });
 
-    // Nếu có ô bị sửa -> Bật class vàng in nghiêng. Nếu giống hệt ban đầu -> Xóa class
-    if (isRowModified) {
-        tr.classList.add('modified-row');
-    } else {
-        tr.classList.remove('modified-row');
+    if (isRowModified) tr.classList.add('modified-row');
+    else tr.classList.remove('modified-row');
+
+    const he10Cell = tr.querySelector('.cell-he10');
+    const he4Cell = tr.querySelector('.cell-he4');
+    const chuCell = tr.querySelector('.cell-chu');
+    const xlCell = tr.querySelector('.cell-xl');
+    const datCell = tr.querySelector('.cell-dat');
+
+    if (he10Cell) he10Cell.innerText = formatDiem(diem10);
+    if (he4Cell) he4Cell.innerText = formatDiem(quyDoi.he4);
+    if (chuCell) chuCell.innerText = quyDoi.chu || '-';
+    if (xlCell) xlCell.innerText = quyDoi.xepLoai || '-';
+    if (datCell) {
+        datCell.innerHTML = quyDoi.isDat
+            ? '<span style="color: var(--success); font-size: 16px;">✅</span>'
+            : '<span style="color: var(--danger); font-size: 16px;">❌</span>';
     }
 
-    // Cập nhật DOM hiển thị kết quả
-    tr.querySelector('.cell-he10').innerText = formatDiem(diem10);
-    tr.querySelector('.cell-he4').innerText = formatDiem(quyDoi.he4);
-    tr.querySelector('.cell-chu').innerText = quyDoi.chu;
-    tr.querySelector('.cell-xl').innerText = quyDoi.xepLoai;
-    tr.querySelector('.cell-dat').innerHTML = quyDoi.isDat ? '<span style="color: var(--success);">✅</span>' : '<span style="color: var(--danger);">❌</span>';
-    
-    setScoreColorClass(tr.querySelector('.cell-he10'), diem10); 
-    setScoreColorClass(tr.querySelector('.cell-he4'), diem10); 
-    setGradeLetterClass(tr.querySelector('.cell-chu'), quyDoi.chu);
-    
+    setScoreColorClass(he10Cell, diem10);
+    setScoreColorClass(he4Cell, diem10);
+    setGradeLetterClass(chuCell, quyDoi.chu);
+
     recalculateOverallGPA();
+}
+
+function computeSemesterAggregates(semIndex, globalHistory) {
+    const semRows = document.querySelectorAll(`tr.subject-row[data-sem-idx="${semIndex}"]`);
+    let semTC = 0;
+    let semSum10 = 0;
+    let semSum4 = 0;
+
+    semRows.forEach(tr => {
+        const maHP = tr.dataset.mahp;
+        const isExcluded = tr.dataset.excluded === 'true';
+        const soTC = parseInt(tr.dataset.tc, 10);
+        const he10 = parseFloat(tr.querySelector('.cell-he10')?.innerText);
+        const he4 = parseFloat(tr.querySelector('.cell-he4')?.innerText);
+        const isDat = tr.querySelector('.cell-dat')?.innerHTML.includes('✅');
+
+        if (isNaN(he10) || isNaN(he4)) return;
+
+        if (!isExcluded) {
+            semTC += soTC;
+            semSum10 += he10 * soTC;
+            semSum4 += he4 * soTC;
+        }
+
+        if (!globalHistory[maHP] || he10 > globalHistory[maHP].he10) {
+            globalHistory[maHP] = { he10, he4, soTC, isExcluded, isDat };
+        }
+    });
+
+    return { semTC, semSum10, semSum4 };
+}
+
+function computeCumulativeAggregates(globalHistory) {
+    let cumTC = 0;
+    let cumSum10 = 0;
+    let cumSum4 = 0;
+    let cumTCDat = 0;
+
+    Object.values(globalHistory).forEach(sub => {
+        if (sub.isDat) cumTCDat += sub.soTC;
+        if (!sub.isExcluded) {
+            cumTC += sub.soTC;
+            cumSum10 += sub.he10 * sub.soTC;
+            cumSum4 += sub.he4 * sub.soTC;
+        }
+    });
+
+    return { cumTC, cumSum10, cumSum4, cumTCDat };
+}
+
+function updateSemesterSummaryUI(semIndex, sGpa10, sGpa4, cGpa10, cGpa4) {
+    const elSemGpa10 = $(`sem-gpa10-${semIndex}`);
+    const elSemGpa4 = $(`sem-gpa4-${semIndex}`);
+    const elSemXl = $(`sem-xl-${semIndex}`);
+    const elCumGpa10 = $(`cum-gpa10-${semIndex}`);
+    const elCumGpa4 = $(`cum-gpa4-${semIndex}`);
+    const elCumXl = $(`cum-xl-${semIndex}`);
+
+    if (elSemGpa10) elSemGpa10.innerText = sGpa10;
+    if (elSemGpa4) elSemGpa4.innerText = sGpa4;
+    if (elSemXl) elSemXl.innerText = getXepLoaiHocLuc(parseFloat(sGpa4));
+
+    if (elCumGpa10) elCumGpa10.innerText = cGpa10;
+    if (elCumGpa4) elCumGpa4.innerText = cGpa4;
+    if (elCumXl) elCumXl.innerText = getXepLoaiHocLuc(parseFloat(cGpa4));
 }
 
 function recalculateOverallGPA() {
     if (!globalDashboardData) return;
-    const history = {}; let totalTCDat = 0;
-    
-    for (let i = 0; i < globalDashboardData.semesters.length; i++) {
-        let sTC = 0, s10 = 0, s4 = 0, cTC = 0, c10 = 0, c4 = 0;
-        document.querySelectorAll(`tr.subject-row[data-sem-idx="${i}"]`).forEach(tr => {
-            const h10 = parseFloat(tr.querySelector('.cell-he10').innerText), h4 = parseFloat(tr.querySelector('.cell-he4').innerText);
-            const tc = parseInt(tr.dataset.tc, 10), excl = tr.dataset.excluded === 'true';
-            if (isNaN(h10)) return;
-            if (!excl) { sTC += tc; s10 += h10 * tc; s4 += h4 * tc; }
-            if (!history[tr.dataset.mahp] || h10 > history[tr.dataset.mahp].he10) history[tr.dataset.mahp] = { he10: h10, he4: h4, soTC: tc, excl, dat: tr.querySelector('.cell-dat').innerHTML.includes('✅') };
-        });
-        Object.values(history).forEach(sub => { if (!sub.excl) { cTC += sub.soTC; c10 += sub.he10 * sub.soTC; c4 += sub.he4 * sub.soTC; } if(sub.dat) totalTCDat = cTC; });
-        if($(`sem-gpa10-${i}`)) { $(`sem-gpa10-${i}`).innerText = roundGPA(s10, sTC); $(`sem-gpa4-${i}`).innerText = roundGPA(s4, sTC); $(`cum-gpa10-${i}`).innerText = roundGPA(c10, cTC); $(`cum-gpa4-${i}`).innerText = roundGPA(c4, cTC); }
+
+    const globalHistory = {};
+    let totalTCDatOverall = 0;
+    const numSemesters = (globalDashboardData.semesters || []).length;
+
+    for (let i = 0; i < numSemesters; i++) {
+        const semRows = document.querySelectorAll(`tr.subject-row[data-sem-idx="${i}"]`);
+        if (semRows.length === 0) continue;
+
+        const { semTC, semSum10, semSum4 } = computeSemesterAggregates(i, globalHistory);
+        const sGpa10 = roundGPA(semSum10, semTC);
+        const sGpa4 = roundGPA(semSum4, semTC);
+
+        const { cumTC, cumSum10, cumSum4, cumTCDat } = computeCumulativeAggregates(globalHistory);
+        const cGpa10 = roundGPA(cumSum10, cumTC);
+        const cGpa4 = roundGPA(cumSum4, cumTC);
+
+        updateSemesterSummaryUI(i, sGpa10, sGpa4, cGpa10, cGpa4);
+        totalTCDatOverall = cumTCDat;
     }
-    
-    let fTC = 0, f10 = 0, f4 = 0;
-    Object.values(history).forEach(s => { if(!s.excl) { fTC += s.soTC; f10 += s.he10 * s.soTC; f4 += s.he4 * s.soTC; }});
-    $('val-gpa-10').innerText = roundGPA(f10, fTC); $('val-gpa-4').innerText = roundGPA(f4, fTC);
+
+    const { cumTC: finalCumTC, cumSum10: finalCumSum10, cumSum4: finalCumSum4 } = computeCumulativeAggregates(globalHistory);
+
+    progressState.current = totalTCDatOverall;
+    updateProgressDisplay();
+
+    const valGpa10 = $('val-gpa-10');
+    const valGpa4 = $('val-gpa-4');
+    if (valGpa10) valGpa10.innerText = roundGPA(finalCumSum10, finalCumTC);
+    if (valGpa4) valGpa4.innerText = roundGPA(finalCumSum4, finalCumTC);
 }
 
-/* ============================================================
-   5. LOGIC FETCH ĐIỂM & XÁC THỰC AI
-   ============================================================ */
-let isSyncing = false;
-function executeFetchGrades() {
-    if (isSyncing) return; isSyncing = true;
-    const btnSync = $('btn-sync-grades'), tbody = $('grade-table-body');
-    if (btnSync) { btnSync.innerHTML = `<span class="icon">⏳</span> Đang cào dữ liệu...`; btnSync.style.pointerEvents = 'none'; }
-    if (tbody) tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium text-blue">Đang tải và phân tích dữ liệu từ hệ thống trường...</td></tr>`;
+function triggerSync() {
+    const btnSync = $('btn-sync-grades');
+    const tbody = $('grade-table-body');
+
+    if (!tbody) return;
+
+    if (btnSync) {
+        btnSync.innerHTML = `<span class="icon">⏳</span> Đang đồng bộ...`;
+        btnSync.style.pointerEvents = 'none';
+    }
+
+    tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium">Đang tải và phân tích dữ liệu từ trường...</td></tr>`;
 
     fetchAndProcessGrades().then(data => {
-        isSyncing = false;
         if (btnSync) btnSync.style.pointerEvents = 'auto';
-        
-        if (data === 'AUTH_REQUIRED' || data === 'REQUIRE_LOGIN') {
+
+        if (data === 'REQUIRE_LOGIN' || data === 'AUTH_REQUIRED') {
+            tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium text-orange">Phiên đăng nhập hết hạn. Đang mở lại phiên...</td></tr>`;
             if (btnSync) btnSync.innerHTML = `<span class="icon">🔑</span> Đang khôi phục...`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium text-orange">Phiên đăng nhập hết hạn. Đang mở Ghost Tab nhờ AI giải Captcha tự động...</td></tr>`;
-            
-            // 🚨 SỬA TẠI ĐÂY: Đón trực tiếp câu trả lời của Background thông qua Callback
+
             chrome.runtime.sendMessage({ action: "renewSessionViaGhostTab" }, (response) => {
-                // Bắt lỗi nếu Background bị ngắt kết nối
                 if (chrome.runtime.lastError) {
-                    console.error("[Dashboard] Lỗi giao tiếp:", chrome.runtime.lastError);
-                    if (tbody) tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium text-danger">Lỗi kết nối nội bộ. Hãy F5 tải lại trang Dashboard!</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium text-red">Lỗi kết nối nội bộ. Hãy tải lại trang Dashboard.</td></tr>`;
                     if (btnSync) btnSync.innerHTML = `<span class="icon">❌</span> Thất bại`;
                     return;
                 }
-                
-                // Nếu Background báo đã đăng nhập thành công -> Lập tức tự chạy lại lệnh fetch
                 if (response && response.success) {
-                    console.log("[Dashboard] Xác nhận đã có Cookie! Tự động cào điểm ngay...");
-                    executeFetchGrades(); 
+                    triggerSync();
                 }
             });
             return;
         }
+
         if (!data) {
+            tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium score-low">Lỗi kết nối. Vui lòng thử lại sau.</td></tr>`;
             if (btnSync) btnSync.innerHTML = `<span class="icon">❌</span> Lỗi mạng`;
-            if (tbody) tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium score-low">Lỗi kết nối. Vui lòng thử lại sau.</td></tr>`;
             return;
         }
-        globalDashboardData = data; renderDashboard(data);
-        if (btnSync) btnSync.innerHTML = `<span class="icon">✅</span> Đã cập nhật`;
-        setTimeout(() => { if (!isSyncing && btnSync) btnSync.innerHTML = `<span class="icon">🔄</span> Làm mới dữ liệu gốc`; }, 3000);
+
+        globalDashboardData = data;
+        renderDashboard(data);
+
+        if (btnSync) {
+            btnSync.innerHTML = `<span class="icon">✅</span> Đã cập nhật`;
+            setTimeout(() => {
+                btnSync.innerHTML = `<span class="icon">🔄</span> Làm mới dữ liệu gốc`;
+            }, 3000);
+        }
+    }).catch(() => {
+        tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium score-low">Có lỗi khi xử lý dữ liệu.</td></tr>`;
+        if (btnSync) {
+            btnSync.style.pointerEvents = 'auto';
+            btnSync.innerHTML = `<span class="icon">❌</span> Thất bại`;
+        }
     });
 }
 
-// Lắng nghe tín hiệu khi Ghost Tab AI đã đăng nhập xong
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "sessionRenewedSuccessfully") {
-        executeFetchGrades();
-    }
-});
+function loadSettingsToForm() {
+    const txtWebApp = $('setting-webapp-url');
+    const txtUser = $('setting-user');
+    const txtPass = $('setting-pass');
+    const chkAutoFill = $('setting-auto-fill');
+    const chkAutoLogin = $('setting-auto-login');
+    const selColorDirect = $('setting-color-direct');
+    const selColorOnline = $('setting-color-online');
+    const selColorPractice = $('setting-color-practice');
+    const selColorPostponed = $('setting-color-postponed');
+    const selColorExam = $('setting-color-exam');
 
-/* ============================================================
-   6. INIT SỰ KIỆN GIAO DIỆN CHÍNH (SIDEBAR, MODAL, SETTINGS)
-   ============================================================ */
-document.addEventListener('DOMContentLoaded', () => {
-    
-    // --- TỰ ĐỘNG THU PHÓNG (ZOOM) TRÌNH DUYỆT VỀ MỨC 75% ---
-    if (chrome.tabs && chrome.tabs.getCurrent) {
-        chrome.tabs.getCurrent((tab) => {
-            if (tab && tab.id) {
-                chrome.tabs.setZoom(tab.id, 0.67);
-            }
-        });
-    }
-    
-    // --- NẠP DỮ LIỆU ĐIỂM BAN ĐẦU ---
-    chrome.storage.local.get(['iuh_grade_data'], result => {
-        if (result.iuh_grade_data) {
-            globalDashboardData = result.iuh_grade_data;
-            renderDashboard(globalDashboardData);
-        } else {
-            executeFetchGrades();
+    chrome.storage.sync.get([
+        'webAppUrl',
+        'iuhUser',
+        'iuhPass',
+        'autoFillInfo',
+        'autoClickLogin',
+        'calendarColorDirect',
+        'calendarColorOnline',
+        'calendarColorPractice',
+        'calendarColorPostponed',
+        'calendarColorExam'
+    ], (result) => {
+        if (txtWebApp) txtWebApp.value = result.webAppUrl || '';
+        if (txtUser) txtUser.value = result.iuhUser || '';
+        if (txtPass) txtPass.value = result.iuhPass || '';
+        if (chkAutoFill) chkAutoFill.checked = result.autoFillInfo !== false;
+        if (chkAutoLogin) chkAutoLogin.checked = result.autoClickLogin !== false;
+
+        if (selColorDirect) selColorDirect.value = result.calendarColorDirect || '9';
+        if (selColorOnline) selColorOnline.value = result.calendarColorOnline || '7';
+        if (selColorPractice) selColorPractice.value = result.calendarColorPractice || '2';
+        if (selColorPostponed) selColorPostponed.value = result.calendarColorPostponed || '8';
+        if (selColorExam) selColorExam.value = result.calendarColorExam || '11';
+    });
+}
+
+function saveSettingsFromForm() {
+    const txtWebApp = $('setting-webapp-url');
+    const txtUser = $('setting-user');
+    const txtPass = $('setting-pass');
+    const chkAutoFill = $('setting-auto-fill');
+    const chkAutoLogin = $('setting-auto-login');
+    const selColorDirect = $('setting-color-direct');
+    const selColorOnline = $('setting-color-online');
+    const selColorPractice = $('setting-color-practice');
+    const selColorPostponed = $('setting-color-postponed');
+    const selColorExam = $('setting-color-exam');
+    const btnSaveSettings = $('btn-save-settings');
+
+    if (!txtWebApp || !txtUser || !txtPass || !chkAutoFill || !chkAutoLogin) return;
+
+    const dataToSave = {
+        webAppUrl: txtWebApp.value.trim(),
+        iuhUser: txtUser.value.trim(),
+        iuhPass: txtPass.value,
+        autoFillInfo: chkAutoFill.checked,
+        autoClickLogin: chkAutoLogin.checked,
+        calendarColorDirect: selColorDirect ? selColorDirect.value : '9',
+        calendarColorOnline: selColorOnline ? selColorOnline.value : '7',
+        calendarColorPractice: selColorPractice ? selColorPractice.value : '2',
+        calendarColorPostponed: selColorPostponed ? selColorPostponed.value : '8',
+        calendarColorExam: selColorExam ? selColorExam.value : '11'
+    };
+
+    chrome.storage.sync.set(dataToSave, () => {
+        if (btnSaveSettings) {
+            const oldText = btnSaveSettings.innerText;
+            btnSaveSettings.innerText = '✅ Đã cấu hình hệ thống thành công!';
+            btnSaveSettings.style.background = 'var(--success)';
+            setTimeout(() => {
+                btnSaveSettings.innerText = oldText || '💾 Lưu cấu hình hệ thống';
+                btnSaveSettings.style.background = 'var(--primary)';
+            }, 2000);
         }
     });
-    if ($('btn-sync-grades')) $('btn-sync-grades').addEventListener('click', executeFetchGrades);
+}
 
-    // --- CHUYỂN TAB SIDEBAR (SPA) ---
-    const navs = ['nav-grades', 'nav-schedule', 'nav-survey', 'nav-settings'];
-    function switchActiveNav(activeId) {
-        navs.forEach(id => { if ($(id)) $(id).classList.remove('active'); });
-        if ($(activeId)) $(activeId).classList.add('active');
-    }
+function initSurveyWidget() {
+    const navSurvey = $('nav-survey');
+    if (!navSurvey) return;
 
-    if ($('nav-grades')) {
-        $('nav-grades').addEventListener('click', (e) => {
-            e.preventDefault(); switchActiveNav('nav-grades');
-            $('tab-content-grades').style.display = 'block';
-            $('tab-content-settings').style.display = 'none';
-        });
-    }
-
-    if ($('nav-settings')) {
-        $('nav-settings').addEventListener('click', (e) => {
-            e.preventDefault(); switchActiveNav('nav-settings');
-            $('tab-content-grades').style.display = 'none';
-            $('tab-content-settings').style.display = 'block';
-            
-            // Render màu vào setting và nạp cấu hình hiện tại
-            const colors = `<option value="1">Lavender (Tím nhạt)</option><option value="2">Sage (Xanh lá nhạt)</option><option value="3">Grape (Tím đậm)</option><option value="4">Flamingo (Hồng)</option><option value="5">Banana (Vàng nhạt)</option><option value="6">Tangerine (Cam)</option><option value="7">Peacock (Xanh lơ)</option><option value="8">Graphite (Xám)</option><option value="9">Blueberry (Xanh dương)</option><option value="10">Basil (Xanh đậm)</option><option value="11">Tomato (Đỏ)</option>`;
-            document.querySelectorAll('.color-select-input').forEach(el => el.innerHTML = colors);
-            
-            chrome.storage.sync.get(['iuhUser', 'iuhPass', 'autoFillInfo', 'autoClickLogin', 'calendarColorDirect', 'calendarColorOnline', 'calendarColorPractice', 'calendarColorPostponed', 'calendarColorExam'], (res) => {
-                if ($('setting-user')) $('setting-user').value = res.iuhUser || '';
-                if ($('setting-pass')) $('setting-pass').value = res.iuhPass || '';
-                if ($('setting-auto-fill')) $('setting-auto-fill').checked = res.autoFillInfo !== false;
-                if ($('setting-auto-login')) $('setting-auto-login').checked = res.autoClickLogin !== false;
-                if ($('setting-color-direct')) $('setting-color-direct').value = res.calendarColorDirect || '9';    
-                if ($('setting-color-online')) $('setting-color-online').value = res.calendarColorOnline || '7';    
-                if ($('setting-color-practice')) $('setting-color-practice').value = res.calendarColorPractice || '2';
-                if ($('setting-color-postponed')) $('setting-color-postponed').value = res.calendarColorPostponed || '8';
-                if ($('setting-color-exam')) $('setting-color-exam').value = res.calendarColorExam || '11';
-            });
-        });
-    }
-
-    // --- LƯU SETTINGS ---
-    if ($('btn-save-settings')) {
-        $('btn-save-settings').addEventListener('click', () => {
-            chrome.storage.sync.set({
-                iuhUser: $('setting-user').value.trim(), iuhPass: $('setting-pass').value,
-                autoFillInfo: $('setting-auto-fill').checked, autoClickLogin: $('setting-auto-login').checked,
-                calendarColorDirect: $('setting-color-direct').value, calendarColorOnline: $('setting-color-online').value,
-                calendarColorPractice: $('setting-color-practice').value, calendarColorPostponed: $('setting-color-postponed').value,
-                calendarColorExam: $('setting-color-exam').value
-            }, () => {
-                $('btn-save-settings').innerText = '✅ Đã lưu cấu hình thành công!';
-                setTimeout(() => { $('btn-save-settings').innerText = '💾 Lưu cấu hình hệ thống'; }, 2000);
-            });
-        });
-    }
-
-    // --- POPUP ĐỒNG BỘ LỊCH HỌC ---
-    if ($('nav-schedule')) {
-        $('nav-schedule').addEventListener('click', (e) => {
-            e.preventDefault(); switchActiveNav('nav-schedule');
-            $('modal-weeks-sync').style.display = 'flex';
-            $('sync-weeks-input').focus();
-        });
-    }
-    const closeModals = () => { if ($('modal-weeks-sync')) $('modal-weeks-sync').style.display = 'none'; };
-    if ($('btn-close-weeks-modal')) $('btn-close-weeks-modal').addEventListener('click', closeModals);
-    
-    function triggerScheduleSync() {
-        $('btn-submit-weeks-modal').innerText = '⏳ Đang mở Ghost Tab...';
-        chrome.storage.local.set({ iuh_sync_weeks_count: parseInt($('sync-weeks-input').value) || 5, iuh_auto_sync_active: true }, () => {
-            chrome.runtime.sendMessage({ action: "triggerManualScheduleSync" });
-            closeModals();
-            setTimeout(() => { $('btn-submit-weeks-modal').innerText = 'Cập nhật (Enter)'; }, 2000);
-        });
-    }
-    if ($('btn-submit-weeks-modal')) $('btn-submit-weeks-modal').addEventListener('click', triggerScheduleSync);
-
-// --- AUTO KHẢO SÁT ---
-    if ($('nav-survey')) {
-        // TẠO GIAO DIỆN: Khối hộp hiển thị tiến trình (Ẩn mặc định, nằm ngay dưới nút Khảo sát)
-        const surveyProgressContainer = document.createElement('div');
+    let surveyProgressContainer = $('survey-progress-container');
+    if (!surveyProgressContainer) {
+        surveyProgressContainer = document.createElement('div');
         surveyProgressContainer.id = 'survey-progress-container';
         surveyProgressContainer.style.display = 'none';
         surveyProgressContainer.style.marginTop = '8px';
@@ -431,77 +613,260 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div id="survey-progress-bar" style="background: var(--warning); width: 100%; height: 100%; transition: width 0.3s;"></div>
             </div>
         `;
-        // Gắn khối hộp tiến trình vào sát ngay dưới nút nav-survey
-        $('nav-survey').parentNode.insertBefore(surveyProgressContainer, $('nav-survey').nextSibling);
+        navSurvey.parentNode.insertBefore(surveyProgressContainer, navSurvey.nextSibling);
+    }
 
-        $('nav-survey').addEventListener('click', (e) => {
-            e.preventDefault(); switchActiveNav('nav-survey');
-            if (confirm("Extension sẽ tự động chọn mức 'Bình thường' và điền form cho TẤT CẢ các phiếu khảo sát chưa làm. Bạn có muốn tiếp tục?")) {
-                // Xóa trạng thái cũ đi và khởi động luồng ngầm
-                chrome.storage.local.remove('iuh_survey_status', () => {
-                    chrome.storage.local.set({ 'iuh_auto_survey_running': true, 'iuh_survey_current_index': 0, 'iuh_survey_urls': [] }, () => {
-                        chrome.runtime.sendMessage({ action: "triggerAutoSurvey" });
-                    });
+    navSurvey.addEventListener('click', (e) => {
+        e.preventDefault();
+
+        const navGrades = $('nav-grades');
+        const navSchedule = $('nav-schedule');
+        const navSurveyBtn = $('nav-survey');
+        const navSettings = $('nav-settings');
+        [navGrades, navSchedule, navSurveyBtn, navSettings].forEach(n => n && n.classList.remove('active'));
+        navSurveyBtn && navSurveyBtn.classList.add('active');
+
+        if (confirm("Extension sẽ tự động chọn mức 'Bình thường' và điền form cho TẤT CẢ các phiếu khảo sát chưa làm. Bạn có muốn tiếp tục?")) {
+            chrome.storage.local.remove('iuh_survey_status', () => {
+                chrome.storage.local.set({
+                    iuh_auto_survey_running: true,
+                    iuh_survey_current_index: 0,
+                    iuh_survey_urls: []
+                }, () => {
+                    chrome.runtime.sendMessage({ action: "triggerAutoSurvey" });
                 });
+            });
+        }
+    });
+
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+        if (namespace !== 'local') return;
+        if (!(changes.iuh_survey_current_index || changes.iuh_survey_urls || changes.iuh_survey_status || changes.iuh_auto_survey_running)) return;
+
+        chrome.storage.local.get(['iuh_auto_survey_running', 'iuh_survey_current_index', 'iuh_survey_urls', 'iuh_survey_status'], (data) => {
+            const isRunning = data.iuh_auto_survey_running;
+            const current = data.iuh_survey_current_index || 0;
+            const urls = data.iuh_survey_urls || [];
+            const total = urls.length;
+            const status = data.iuh_survey_status;
+
+            if (isRunning) {
+                surveyProgressContainer.style.display = 'block';
+                if (total === 0) {
+                    $('survey-progress-text').innerText = 'Đang tải danh sách khảo sát...';
+                    $('survey-progress-bar').style.width = '100%';
+                    $('survey-progress-bar').style.background = 'var(--warning)';
+                } else {
+                    const percent = Math.round((current / total) * 100);
+                    $('survey-progress-text').innerText = `Đang xử lý môn số ${current}/${total} (${percent}%)`;
+                    $('survey-progress-bar').style.width = `${percent}%`;
+                    $('survey-progress-bar').style.background = '#28a745';
+                }
+            } else {
+                surveyProgressContainer.style.display = 'none';
+                if (status === 'NO_SURVEYS') {
+                    alert("🎉 Tuyệt vời! Bạn không còn phiếu khảo sát học phần nào cần làm.");
+                    chrome.storage.local.remove('iuh_survey_status');
+                } else if (status === 'DONE') {
+                    alert("✅ Hoàn tất! Đã tự động điền xong toàn bộ phiếu khảo sát.");
+                    chrome.storage.local.remove('iuh_survey_status');
+                }
+            }
+        });
+    });
+}
+
+function initScheduleModal() {
+    const navSchedule = $('nav-schedule');
+    const modalWeeks = $('modal-weeks-sync');
+    const weeksInput = $('sync-weeks-input');
+    const btnCloseWeeksModal = $('btn-close-weeks-modal');
+    const btnSubmitWeeksModal = $('btn-submit-weeks-modal');
+
+    if (!navSchedule || !modalWeeks || !weeksInput || !btnCloseWeeksModal || !btnSubmitWeeksModal) return;
+
+    navSchedule.addEventListener('click', (e) => {
+        e.preventDefault();
+        const navGrades = $('nav-grades');
+        const navSurvey = $('nav-survey');
+        const navSettings = $('nav-settings');
+        [navGrades, navSchedule, navSurvey, navSettings].forEach(n => n && n.classList.remove('active'));
+        navSchedule.classList.add('active');
+
+        modalWeeks.style.display = 'flex';
+        weeksInput.value = '5';
+        weeksInput.focus();
+        weeksInput.select();
+    });
+
+    const closeWeeksModal = () => {
+        modalWeeks.style.display = 'none';
+    };
+
+    btnCloseWeeksModal.addEventListener('click', closeWeeksModal);
+    modalWeeks.addEventListener('click', (e) => {
+        if (e.target === modalWeeks) closeWeeksModal();
+    });
+
+    let isExecutingSync = false;
+    function executeScheduleSync() {
+        if (isExecutingSync) return;
+        isExecutingSync = true;
+
+        const originalBtnText = btnSubmitWeeksModal.innerText;
+        btnSubmitWeeksModal.innerText = '⏳ Đang khởi động...';
+        btnSubmitWeeksModal.style.opacity = '0.7';
+
+        const totalWeeks = parseInt(weeksInput.value, 10) || 5;
+
+        chrome.storage.local.set({
+            iuh_sync_weeks_count: totalWeeks,
+            iuh_auto_sync_active: true
+        }, () => {
+            chrome.runtime.sendMessage({ action: "triggerManualScheduleSync" });
+            closeWeeksModal();
+
+            setTimeout(() => {
+                isExecutingSync = false;
+                btnSubmitWeeksModal.innerText = originalBtnText;
+                btnSubmitWeeksModal.style.opacity = '1';
+            }, 2000);
+        });
+    }
+
+    btnSubmitWeeksModal.addEventListener('click', executeScheduleSync);
+    weeksInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            executeScheduleSync();
+        }
+    });
+}
+
+function initSettingsUI() {
+    const navGrades = $('nav-grades');
+    const navSchedule = $('nav-schedule');
+    const navSurvey = $('nav-survey');
+    const navSettings = $('nav-settings');
+
+    const tabGrades = $('tab-content-grades');
+    const tabSettings = $('tab-content-settings');
+
+    const btnToggleReg = $('btn-toggle-reg');
+    const regPanel = $('reg-panel');
+
+    const btnTogglePassword = $('btn-toggle-password');
+    const txtPass = $('setting-pass');
+
+    const iconEyeVisible = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+    const iconEyeHidden = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+
+    document.querySelectorAll('.color-select-input').forEach(select => {
+        select.innerHTML = GOOGLE_COLOR_OPTIONS_HTML;
+    });
+
+    function switchActiveNav(activeId) {
+        [navGrades, navSchedule, navSurvey, navSettings].forEach(nav => {
+            if (nav) nav.classList.remove('active');
+        });
+
+        const activeEl = document.getElementById(activeId);
+        if (activeEl) activeEl.classList.add('active');
+    }
+
+    function switchTab(tabName) {
+        if (!tabGrades || !tabSettings) return;
+
+        switchActiveNav(`nav-${tabName}`);
+
+        if (tabName === 'grades') {
+            tabGrades.style.display = 'block';
+            tabSettings.style.display = 'none';
+        } else if (tabName === 'settings') {
+            tabGrades.style.display = 'none';
+            tabSettings.style.display = 'block';
+            loadSettingsToForm();
+        }
+    }
+
+    if (btnToggleReg && regPanel) {
+        btnToggleReg.addEventListener('click', () => {
+            regPanel.classList.toggle('show');
+            btnToggleReg.innerText = regPanel.classList.contains('show') ? '✕' : 'i';
+        });
+    }
+
+    if (btnTogglePassword && txtPass) {
+        btnTogglePassword.innerHTML = iconEyeHidden;
+
+        btnTogglePassword.addEventListener('click', () => {
+            if (txtPass.type === 'password') {
+                txtPass.type = 'text';
+                btnTogglePassword.innerHTML = iconEyeVisible;
+                btnTogglePassword.title = 'Ẩn mật khẩu';
+            } else {
+                txtPass.type = 'password';
+                btnTogglePassword.innerHTML = iconEyeHidden;
+                btnTogglePassword.title = 'Hiện mật khẩu';
             }
         });
 
-        // LẮNG NGHE STORAGE: Tự động vẽ thanh Tiến trình theo thời gian thực
-        chrome.storage.onChanged.addListener((changes, namespace) => {
-            if (namespace === 'local' && (changes.iuh_survey_current_index || changes.iuh_survey_urls || changes.iuh_survey_status || changes.iuh_auto_survey_running)) {
-                chrome.storage.local.get(['iuh_auto_survey_running', 'iuh_survey_current_index', 'iuh_survey_urls', 'iuh_survey_status'], (data) => {
-                    const isRunning = data.iuh_auto_survey_running;
-                    const current = data.iuh_survey_current_index || 0;
-                    const urls = data.iuh_survey_urls || [];
-                    const total = urls.length;
-                    const status = data.iuh_survey_status;
+        btnTogglePassword.addEventListener('mouseenter', () => {
+            btnTogglePassword.style.color = '#fff';
+        });
 
-                    if (isRunning) {
-                        // Nếu chưa nạp xong số lượng -> Chỉ hiện báo đang tải
-                        if (total === 0) {
-                            surveyProgressContainer.style.display = 'block';
-                            $('survey-progress-text').innerText = `Đang tải danh sách khảo sát...`;
-                            $('survey-progress-bar').style.width = `100%`;
-                            $('survey-progress-bar').style.background = `var(--warning)`;
-                        } 
-                        // Đã có số lượng -> Vẽ thanh tiến trình %
-                        else {
-                            surveyProgressContainer.style.display = 'block';
-                            const percent = Math.round((current / total) * 100);
-                            $('survey-progress-text').innerText = `Đang xử lý môn số ${current}/${total} (${percent}%)`;
-                            $('survey-progress-bar').style.width = `${percent}%`;
-                            $('survey-progress-bar').style.background = `#28a745`;
-                        }
-                    } else {
-                        // Tắt hộp tiến trình ngay khi hoàn thành
-                        surveyProgressContainer.style.display = 'none';
-                        
-                        // Đón tín hiệu Popup Thông báo
-                        if (status === 'NO_SURVEYS') {
-                            alert("🎉 Tuyệt vời! Bạn không còn phiếu khảo sát học phần nào cần làm.");
-                            chrome.storage.local.remove('iuh_survey_status');
-                        } else if (status === 'DONE') {
-                            alert("✅ Hoàn tất! Đã tự động điền xong toàn bộ phiếu khảo sát.");
-                            chrome.storage.local.remove('iuh_survey_status');
-                        }
-                    }
-                });
-            }
+        btnTogglePassword.addEventListener('mouseleave', () => {
+            btnTogglePassword.style.color = 'var(--text-muted)';
         });
     }
 
-    // --- UI PHỤ (Toggles) ---
-    if ($('btn-toggle-reg')) {
-        $('btn-toggle-reg').addEventListener('click', () => {
-            $('reg-panel').classList.toggle('show');
-            $('btn-toggle-reg').innerText = $('reg-panel').classList.contains('show') ? '✕' : 'i';
+    if (navGrades) {
+        navGrades.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchTab('grades');
         });
     }
-    if ($('btn-toggle-password')) {
-        $('btn-toggle-password').addEventListener('click', () => {
-            const t = $('setting-pass');
-            if (t.type === 'password') { t.type = 'text'; $('btn-toggle-password').style.color = '#fff'; } 
-            else { t.type = 'password'; $('btn-toggle-password').style.color = 'var(--text-muted)'; }
+
+    if (navSettings) {
+        navSettings.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchTab('settings');
         });
     }
+
+    if (navSurvey) {
+        initSurveyWidget();
+    }
+
+    initScheduleModal();
+
+    const btnSaveSettings = $('btn-save-settings');
+    if (btnSaveSettings) {
+        btnSaveSettings.addEventListener('click', saveSettingsFromForm);
+    }
+
+    chrome.storage.local.get(['iuh_grade_data'], result => {
+        if (result.iuh_grade_data) {
+            globalDashboardData = result.iuh_grade_data;
+            renderDashboard(globalDashboardData);
+        } else {
+            triggerSync();
+        }
+    });
+
+    const btnSyncGrades = $('btn-sync-grades');
+    if (btnSyncGrades) {
+        btnSyncGrades.addEventListener('click', triggerSync);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initSettingsUI();
+    loadSettingsToForm();
+
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'sessionRenewedSuccessfully') {
+            triggerSync();
+        }
+    });
 });
