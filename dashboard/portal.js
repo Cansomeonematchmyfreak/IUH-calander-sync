@@ -319,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (chrome.tabs && chrome.tabs.getCurrent) {
         chrome.tabs.getCurrent((tab) => {
             if (tab && tab.id) {
-                chrome.tabs.setZoom(tab.id, 0.75);
+                chrome.tabs.setZoom(tab.id, 0.67);
             }
         });
     }
