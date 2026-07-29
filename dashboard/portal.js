@@ -471,7 +471,7 @@ function triggerSync() {
         if (btnSync) btnSync.style.pointerEvents = 'auto';
 
         if (data === 'REQUIRE_LOGIN' || data === 'AUTH_REQUIRED') {
-            tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium text-orange">Phiên đăng nhập hết hạn. Đang mở lại phiên...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium text-orange">Phiên đăng nhập hết hạn. Đang mở lại phiên ngầm...</td></tr>`;
             if (btnSync) btnSync.innerHTML = `<span class="icon">🔑</span> Đang khôi phục...`;
 
             chrome.runtime.sendMessage({ action: "renewSessionViaGhostTab" }, (response) => {
@@ -482,6 +482,13 @@ function triggerSync() {
                 }
                 if (response && response.success) {
                     triggerSync();
+                } else {
+                    // [SỬA LỖI VÒNG LẶP] Xử lý khi đăng nhập ngầm thất bại
+                    tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium text-red">Đăng nhập tự động thất bại. Vui lòng kiểm tra lại tài khoản.</td></tr>`;
+                    if (btnSync) {
+                        btnSync.style.pointerEvents = 'auto';
+                        btnSync.innerHTML = `<span class="icon">❌</span> Thất bại`;
+                    }
                 }
             });
             return;
@@ -824,6 +831,10 @@ function initSettingsUI() {
         navGrades.addEventListener('click', (e) => {
             e.preventDefault();
             switchTab('grades');
+            // [SỬA ĐỂ ĐÚNG FLOW] Nếu chuyển sang tab Bảng điểm mà chưa có data thì tự gọi triggerSync()
+            if (!globalDashboardData) {
+                triggerSync();
+            }
         });
     }
 
@@ -850,7 +861,12 @@ function initSettingsUI() {
             globalDashboardData = result.iuh_grade_data;
             renderDashboard(globalDashboardData);
         } else {
-            triggerSync();
+            // [SỬA LỖI AUTO LOGIN] Tắt tự động gọi triggerSync() ở đây
+            // Khi người dùng mở giao diện, nếu không có data thì yêu cầu bấm nút để đồng bộ
+            const tbody = $('grade-table-body');
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="20" class="text-center font-medium text-orange">Chưa có dữ liệu bảng điểm. Vui lòng bấm "Làm mới dữ liệu gốc" để lấy điểm từ hệ thống.</td></tr>`;
+            }
         }
     });
 
