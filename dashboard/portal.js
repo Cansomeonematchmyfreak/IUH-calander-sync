@@ -5,19 +5,20 @@ let globalDashboardData = null;
 let progressState = { current: 0, total: 130 };
 let isSyncing = false;
 
-const GOOGLE_COLOR_OPTIONS_HTML = `
-    <option value="1">Lavender (Tím nhạt)</option>
-    <option value="2">Sage (Xanh lá nhạt)</option>
-    <option value="3">Grape (Tím đậm)</option>
-    <option value="4">Flamingo (Hồng)</option>
-    <option value="5">Banana (Vàng nhạt)</option>
-    <option value="6">Tangerine (Cam)</option>
-    <option value="7">Peacock (Xanh lơ)</option>
-    <option value="8">Graphite (Xám)</option>
-    <option value="9">Blueberry (Xanh dương)</option>
-    <option value="10">Basil (Xanh lá đậm)</option>
-    <option value="11">Tomato (Đỏ)</option>
-`;
+// — Hex defaults cho bảng màu mới (tự do, không giới hạn bởi 11 màu cũ)
+const GOOGLE_COLORS = {
+    "ly-thuyet":  "#616161",
+    "thuc-hanh":  "#33b679",
+    "truc-tuyen": "#039be5",
+    "thi":        "#f6bf26",
+    "tam-ngung":  "#d50000"
+};
+
+const GC_PRESETS_PORTAL = [
+    '#d50000','#e67c73','#f4511e','#ef6c00','#f6bf26','#e4c441','#33b679',
+    '#0b8043','#7cb342','#039be5','#3f51b5','#7986cb','#8e24aa','#616161',
+    '#795548','#a79b8e','#ad1457','#f48fb1','#9c27b0','#00acc1','#558b2f','#f57f17'
+];
 
 const TIET_TIME = {
     1: "06:30", 2: "07:20", 3: "08:10", 4: "09:10", 5: "10:00", 6: "10:50",
@@ -25,13 +26,7 @@ const TIET_TIME = {
     13: "18:00", 14: "18:50", 15: "19:50", 16: "20:40", 17: "21:30", 18: "22:20"
 };
 
-const GOOGLE_COLORS = {
-    "ly-thuyet": "1",
-    "thuc-hanh": "2",
-    "truc-tuyen": "7",
-    "thi": "11",
-    "tam-ngung": "8"
-};
+
 
 function $(id) {
     return document.getElementById(id);
@@ -518,29 +513,29 @@ function triggerSync() {
     });
 }
 
+// Helper: update a portal color picker trigger UI element
+function updatePortalColorTrigger(id, hex) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.setAttribute('data-hex', hex);
+    const swatch = el.querySelector('.portal-color-swatch');
+    const display = el.querySelector('.portal-hex-display');
+    if (swatch) swatch.style.background = hex;
+    if (display) display.textContent = hex;
+}
+
 function loadSettingsToForm() {
     const txtWebApp = $('setting-webapp-url');
     const txtUser = $('setting-user');
     const txtPass = $('setting-pass');
     const chkAutoFill = $('setting-auto-fill');
     const chkAutoLogin = $('setting-auto-login');
-    const selColorDirect = $('setting-color-direct');
-    const selColorOnline = $('setting-color-online');
-    const selColorPractice = $('setting-color-practice');
-    const selColorPostponed = $('setting-color-postponed');
-    const selColorExam = $('setting-color-exam');
 
     chrome.storage.sync.get([
-        'webAppUrl',
-        'iuhUser',
-        'iuhPass',
-        'autoFillInfo',
-        'autoClickLogin',
-        'calendarColorDirect',
-        'calendarColorOnline',
-        'calendarColorPractice',
-        'calendarColorPostponed',
-        'calendarColorExam'
+        'webAppUrl', 'iuhUser', 'iuhPass',
+        'autoFillInfo', 'autoClickLogin',
+        'calendarColorDirect', 'calendarColorOnline', 'calendarColorPractice',
+        'calendarColorPostponed', 'calendarColorExam'
     ], (result) => {
         if (txtWebApp) txtWebApp.value = result.webAppUrl || '';
         if (txtUser) txtUser.value = result.iuhUser || '';
@@ -548,11 +543,21 @@ function loadSettingsToForm() {
         if (chkAutoFill) chkAutoFill.checked = result.autoFillInfo !== false;
         if (chkAutoLogin) chkAutoLogin.checked = result.autoClickLogin !== false;
 
-        if (selColorDirect) selColorDirect.value = result.calendarColorDirect || '9';
-        if (selColorOnline) selColorOnline.value = result.calendarColorOnline || '7';
-        if (selColorPractice) selColorPractice.value = result.calendarColorPractice || '2';
-        if (selColorPostponed) selColorPostponed.value = result.calendarColorPostponed || '8';
-        if (selColorExam) selColorExam.value = result.calendarColorExam || '11';
+
+        const isValidHex = (hex) => /^#[0-9a-fA-F]{6}$/.test(hex);
+        const getHex = (val, fallback) => (val && isValidHex(val)) ? val : fallback;
+
+        const hexDirect    = getHex(result.calendarColorDirect,    GOOGLE_COLORS['ly-thuyet']);
+        const hexOnline    = getHex(result.calendarColorOnline,    GOOGLE_COLORS['truc-tuyen']);
+        const hexPractice  = getHex(result.calendarColorPractice,  GOOGLE_COLORS['thuc-hanh']);
+        const hexPostponed = getHex(result.calendarColorPostponed, GOOGLE_COLORS['tam-ngung']);
+        const hexExam      = getHex(result.calendarColorExam,      GOOGLE_COLORS['thi']);
+
+        updatePortalColorTrigger('setting-color-direct',    hexDirect);
+        updatePortalColorTrigger('setting-color-online',    hexOnline);
+        updatePortalColorTrigger('setting-color-practice',  hexPractice);
+        updatePortalColorTrigger('setting-color-postponed', hexPostponed);
+        updatePortalColorTrigger('setting-color-exam',      hexExam);
     });
 }
 
@@ -562,14 +567,15 @@ function saveSettingsFromForm() {
     const txtPass = $('setting-pass');
     const chkAutoFill = $('setting-auto-fill');
     const chkAutoLogin = $('setting-auto-login');
-    const selColorDirect = $('setting-color-direct');
-    const selColorOnline = $('setting-color-online');
-    const selColorPractice = $('setting-color-practice');
-    const selColorPostponed = $('setting-color-postponed');
-    const selColorExam = $('setting-color-exam');
     const btnSaveSettings = $('btn-save-settings');
 
     if (!txtWebApp || !txtUser || !txtPass || !chkAutoFill || !chkAutoLogin) return;
+
+    const getColorHex = (id, fallback) => {
+        const el = document.getElementById(id);
+        const hex = el ? el.getAttribute('data-hex') : null;
+        return (hex && /^#[0-9a-fA-F]{6}$/.test(hex)) ? hex : fallback;
+    };
 
     const dataToSave = {
         webAppUrl: txtWebApp.value.trim(),
@@ -577,11 +583,11 @@ function saveSettingsFromForm() {
         iuhPass: txtPass.value,
         autoFillInfo: chkAutoFill.checked,
         autoClickLogin: chkAutoLogin.checked,
-        calendarColorDirect: selColorDirect ? selColorDirect.value : '9',
-        calendarColorOnline: selColorOnline ? selColorOnline.value : '7',
-        calendarColorPractice: selColorPractice ? selColorPractice.value : '2',
-        calendarColorPostponed: selColorPostponed ? selColorPostponed.value : '8',
-        calendarColorExam: selColorExam ? selColorExam.value : '11'
+        calendarColorDirect:    getColorHex('setting-color-direct',    GOOGLE_COLORS['ly-thuyet']),
+        calendarColorOnline:    getColorHex('setting-color-online',    GOOGLE_COLORS['truc-tuyen']),
+        calendarColorPractice:  getColorHex('setting-color-practice',  GOOGLE_COLORS['thuc-hanh']),
+        calendarColorPostponed: getColorHex('setting-color-postponed', GOOGLE_COLORS['tam-ngung']),
+        calendarColorExam:      getColorHex('setting-color-exam',      GOOGLE_COLORS['thi'])
     };
 
     chrome.storage.sync.set(dataToSave, () => {
@@ -750,6 +756,169 @@ function initScheduleModal() {
     });
 }
 
+// =============================================================================
+// PORTAL COLOR PICKER — Shared floating picker for dashboard settings
+// =============================================================================
+function initPortalColorPickers() {
+    const panel = document.getElementById('portal-color-panel');
+    const presetGrid = document.getElementById('pc-preset-grid');
+    const hexInput = document.getElementById('pc-hex-input');
+    const hexPreview = document.getElementById('pc-hex-preview');
+    const svCanvas = document.getElementById('pc-sv-canvas');
+    const hueCanvas = document.getElementById('pc-hue-canvas');
+    const svThumb = document.getElementById('pc-sv-thumb');
+    const hueThumb = document.getElementById('pc-hue-thumb');
+    const hsvArea = document.getElementById('pc-hsv-area');
+    const toggleHsvBtn = document.getElementById('pc-toggle-hsv');
+    if (!panel) return;
+
+    const TRIGGER_IDS = [
+        'setting-color-direct','setting-color-online','setting-color-practice',
+        'setting-color-postponed','setting-color-exam'
+    ];
+
+    let activeTriggerId = null;
+    let pH = 0, pS = 1, pV = 1;
+    let draggingSV = false, draggingHue = false, hsvVisible = false;
+
+    // HSV helpers
+    function hsvToHex(h, s, v) {
+        const f = (n, k = (n + h/60)%6) => v - v*s*Math.max(0, Math.min(k,4-k,1));
+        return '#' + [Math.round(f(5)*255), Math.round(f(3)*255), Math.round(f(1)*255)]
+            .map(x => x.toString(16).padStart(2,'0')).join('');
+    }
+    function hexToHsv(hex) {
+        const r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+        const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
+        let h=0;
+        if(d!==0){
+            if(max===r) h=((g-b)/d)%6;
+            else if(max===g) h=(b-r)/d+2;
+            else h=(r-g)/d+4;
+            h=Math.round(h*60); if(h<0)h+=360;
+        }
+        return {h, s: max===0?0:d/max, v:max};
+    }
+    function isValidHex(hex){ return /^#[0-9a-fA-F]{6}$/.test(hex); }
+
+    // Build preset dots
+    GC_PRESETS_PORTAL.forEach(hexColor => {
+        const dot = document.createElement('div');
+        dot.className = 'pc-dot';
+        dot.style.background = hexColor;
+        dot.dataset.hex = hexColor;
+        dot.title = hexColor;
+        dot.addEventListener('mousedown', e => { e.stopPropagation(); applyColor(hexColor); });
+        presetGrid.appendChild(dot);
+    });
+
+    function drawSV() {
+        const ctx = svCanvas.getContext('2d');
+        const W = svCanvas.width, H = svCanvas.height;
+        const gh = ctx.createLinearGradient(0,0,W,0);
+        gh.addColorStop(0,'white'); gh.addColorStop(1,`hsl(${pH},100%,50%)`);
+        ctx.fillStyle = gh; ctx.fillRect(0,0,W,H);
+        const gv = ctx.createLinearGradient(0,0,0,H);
+        gv.addColorStop(0,'rgba(0,0,0,0)'); gv.addColorStop(1,'black');
+        ctx.fillStyle = gv; ctx.fillRect(0,0,W,H);
+    }
+    function drawHue() {
+        const ctx = hueCanvas.getContext('2d');
+        const W = hueCanvas.width, H = hueCanvas.height;
+        const g = ctx.createLinearGradient(0,0,W,0);
+        for(let i=0;i<=360;i+=30) g.addColorStop(i/360,`hsl(${i},100%,50%)`);
+        ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    }
+    function updateThumbs() {
+        const W=svCanvas.offsetWidth||svCanvas.width, H=svCanvas.offsetHeight||svCanvas.height;
+        svThumb.style.left=pS*W+'px'; svThumb.style.top=(1-pV)*H+'px';
+        svThumb.style.background=hsvToHex(pH,pS,pV);
+        hueThumb.style.left=(pH/360*(hueCanvas.offsetWidth||hueCanvas.width))+'px';
+        hueThumb.style.background=`hsl(${pH},100%,50%)`;
+    }
+    function syncFromHSV() {
+        const hex=hsvToHex(pH,pS,pV);
+        hexInput.value=hex; hexPreview.style.background=hex;
+        updateThumbs(); updatePresetDots(hex);
+    }
+    function updatePresetDots(hex) {
+        document.querySelectorAll('.pc-dot').forEach(d=>d.classList.toggle('selected',d.dataset.hex.toLowerCase()===hex.toLowerCase()));
+    }
+    function applyColor(hex) {
+        if(!isValidHex(hex)) return;
+        const hsv=hexToHsv(hex); pH=hsv.h; pS=hsv.s; pV=hsv.v;
+        hexInput.value=hex; hexPreview.style.background=hex;
+        updatePresetDots(hex);
+        if(hsvVisible){drawSV();updateThumbs();}
+        if(activeTriggerId) updatePortalColorTrigger(activeTriggerId, hex);
+    }
+
+    function openPanel(triggerId) {
+        activeTriggerId = triggerId;
+        const trigger = document.getElementById(triggerId);
+        if (!trigger) return;
+        const rect = trigger.getBoundingClientRect();
+        const W = 280;
+        let left = rect.left, top = rect.bottom + 6;
+        if(left+W>window.innerWidth) left=window.innerWidth-W-8;
+        if(top+440>window.innerHeight) top=rect.top-440-6;
+        panel.style.left=left+'px'; panel.style.top=top+'px';
+        panel.classList.add('visible');
+        const hex = trigger.getAttribute('data-hex') || GOOGLE_COLORS['ly-thuyet'];
+        const hsv=hexToHsv(hex); pH=hsv.h; pS=hsv.s; pV=hsv.v;
+        hexInput.value=hex; hexPreview.style.background=hex;
+        updatePresetDots(hex);
+        if(hsvVisible){drawSV();drawHue();updateThumbs();}
+    }
+    function closePanel(){ panel.classList.remove('visible'); activeTriggerId=null; }
+
+    toggleHsvBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        hsvVisible=!hsvVisible;
+        hsvArea.style.display=hsvVisible?'block':'none';
+        toggleHsvBtn.textContent=hsvVisible?'\u25b2 \u1ea8n b\u1ea3ng m\u00e0u tu\u1ef3 ch\u1ec9nh':'\u25bc M\u1edf b\u1ea3ng m\u00e0u tu\u1ef3 ch\u1ec9nh';
+        if(hsvVisible){drawSV();drawHue();updateThumbs();}
+    });
+
+    hexInput.addEventListener('input', () => {
+        const h = hexInput.value.trim();
+        const hex = h.startsWith('#') ? h : '#'+h;
+        if(isValidHex(hex)) applyColor(hex);
+        else hexPreview.style.background='#333';
+    });
+    hexInput.addEventListener('keydown', e => { if(e.key==='Enter') closePanel(); });
+
+    svCanvas.addEventListener('mousedown', e => { draggingSV=true; handleSV(e); });
+    hueCanvas.addEventListener('mousedown', e => { draggingHue=true; handleHue(e); });
+    document.addEventListener('mousemove', e => {
+        if(draggingSV) handleSV(e);
+        if(draggingHue) handleHue(e);
+    });
+    document.addEventListener('mouseup', () => { draggingSV=false; draggingHue=false; });
+    function handleSV(e) {
+        const r=svCanvas.getBoundingClientRect();
+        pS=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+        pV=Math.max(0,Math.min(1,1-(e.clientY-r.top)/r.height));
+        syncFromHSV(); if(activeTriggerId) updatePortalColorTrigger(activeTriggerId,hsvToHex(pH,pS,pV));
+    }
+    function handleHue(e) {
+        const r=hueCanvas.getBoundingClientRect();
+        pH=Math.max(0,Math.min(360,(e.clientX-r.left)/r.width*360));
+        drawSV(); syncFromHSV(); if(activeTriggerId) updatePortalColorTrigger(activeTriggerId,hsvToHex(pH,pS,pV));
+    }
+
+    document.addEventListener('mousedown', e => {
+        if(!panel.contains(e.target) && !e.target.closest('.portal-color-trigger')) {
+            if(panel.classList.contains('visible')) closePanel();
+        }
+    });
+
+    TRIGGER_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.addEventListener('click', () => openPanel(id));
+    });
+}
+
 function initSettingsUI() {
     const navGrades = $('nav-grades');
     const navSchedule = $('nav-schedule');
@@ -768,9 +937,7 @@ function initSettingsUI() {
     const iconEyeVisible = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
     const iconEyeHidden = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
 
-    document.querySelectorAll('.color-select-input').forEach(select => {
-        select.innerHTML = GOOGLE_COLOR_OPTIONS_HTML;
-    });
+    initPortalColorPickers();
 
     function switchActiveNav(activeId) {
         [navGrades, navSchedule, navSurvey, navSettings].forEach(nav => {

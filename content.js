@@ -15,9 +15,13 @@
       13: "18:00", 14: "18:50", 15: "19:50", 16: "20:40", 17: "21:30", 18: "22:20" 
     };
   
-    // Bảng màu mặc định Fallback
+    // Bảng màu hex mặc định Fallback (hex tự do, hỗ trợ toàn bộ bảng màu mới của Google Calendar)
     const GOOGLE_COLORS = { 
-      "ly-thuyet": "1", "thuc-hanh": "2", "truc-tuyen": "5", "thi": "11", "tam-ngung": "8" 
+      "ly-thuyet":  "#616161",  // Graphite (ọ xám)
+      "thuc-hanh":  "#33b679",  // Sage (xanh mint)
+      "truc-tuyen": "#039be5",  // Peacock (xanh lơ)
+      "thi":        "#f6bf26",  // Banana (vàng)
+      "tam-ngung":  "#d50000"   // Tomato (đỏ)
     };
   
     const CHARACTERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -114,7 +118,7 @@
             start: `${date}T${startTime}:00+07:00`,
             end: `${date}T${endTime}:00+07:00`,
             room, teacher, type, note, group,
-            calendarColorId: finalColors[type]
+            calendarColorHex: finalColors[type]
           });
         });
       });
