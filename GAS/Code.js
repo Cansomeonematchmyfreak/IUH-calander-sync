@@ -26,34 +26,57 @@ function doPost(e) {
     const events = data.events || [];
     const uniqueColors = [...new Set(events.map(e => e.calendarColorHex))].filter(Boolean);
 
+    // Map hex -> labelId, dùng chung cho cả bước tạo label lẫn bước gán màu cho event bên dưới
+    const hexToLabelId = {};
+
     if (uniqueColors.length > 0) {
       try {
-        const calData = Calendar.Calendars.get(calendarId, { eventLabelVersion: 1 });
+        const scriptProps = PropertiesService.getScriptProperties();
+        // Cache map hex -> UUID label đã tạo ở những lần sync trước, tránh tạo trùng label
+        // (Google giới hạn tối đa 200 label/calendar, và mỗi lần tạo lại tốn 1 API call)
+        const cachedMap = JSON.parse(scriptProps.getProperty('IUH_HEX_LABEL_MAP') || '{}');
+
+        const calData = Calendar.Calendars.get(calendarId);
         const labelProps = calData.labelProperties || {};
         const existingLabels = labelProps.eventLabels || [];
         const newLabels = [...existingLabels];
         let labelsAdded = false;
 
+        // Nạp lại các label đã biết từ calendar thật (nguồn đáng tin cậy nhất)
+        existingLabels.forEach(l => {
+          const key = (l.backgroundColor || '').toLowerCase();
+          if (key) hexToLabelId[key] = l.id;
+        });
+
         uniqueColors.forEach(hex => {
-          if (!newLabels.some(l => l.backgroundColor === hex)) {
-            newLabels.push({
-              id: 'iuh_color_' + hex.replace('#', '').toLowerCase(),
-              backgroundColor: hex,
-              name: 'IUH Color ' + hex
-            });
-            labelsAdded = true;
-          }
+          const key = hex.toLowerCase();
+          if (hexToLabelId[key]) return; // đã tồn tại trên calendar rồi, khỏi tạo lại
+
+          // ID PHẢI là UUID hợp lệ — Google Calendar Label API từ chối id dạng chuỗi tuỳ ý
+          // (id kiểu "iuh_color_616161" trước đây rất có thể đã bị API trả lỗi 400 âm thầm)
+          const id = cachedMap[key] || Utilities.getUuid();
+          newLabels.push({
+            id: id,
+            backgroundColor: hex,
+            name: 'IUH Color ' + hex
+          });
+          hexToLabelId[key] = id;
+          cachedMap[key] = id;
+          labelsAdded = true;
         });
 
         if (labelsAdded) {
           Calendar.Calendars.patch(
-            { labelProperties: { eventLabels: newLabels } }, 
-            calendarId, 
-            { eventLabelVersion: 1 }
+            { labelProperties: { eventLabels: newLabels } },
+            calendarId
           );
+          scriptProps.setProperty('IUH_HEX_LABEL_MAP', JSON.stringify(cachedMap));
+          // Đệm nhỏ để tránh trường hợp label vừa tạo chưa kịp propagate
+          // trước khi Events.patch() bên dưới cố gán eventLabelId cho event
+          Utilities.sleep(500);
         }
       } catch (labelErr) {
-        console.warn("Lỗi tạo label màu (bỏ qua): " + labelErr.message);
+        console.error("Lỗi tạo label màu: " + labelErr.message + "\n" + (labelErr.stack || ""));
       }
     }
 
@@ -84,20 +107,22 @@ function doPost(e) {
 
         // 🎨 GÁN NHÃN MÀU HEX BẰNG LABEL API (eventLabelVersion=1)
         if (ev.calendarColorHex) {
-          try {
-            const eventId = newEvent.getId().replace("@google.com", "");
-            const labelId = 'iuh_color_' + ev.calendarColorHex.replace('#', '').toLowerCase();
+          const labelId = hexToLabelId[ev.calendarColorHex.toLowerCase()];
+          if (!labelId) {
+            console.error("Không tìm thấy labelId cho màu " + ev.calendarColorHex + " (bước tạo label ở trên có thể đã fail)");
+          } else {
+            try {
+              const eventId = newEvent.getId().replace("@google.com", "");
 
-            Calendar.Events.patch(
-              {
-                eventLabelId: labelId
-              },
-              calendarId,
-              eventId,
-              { eventLabelVersion: 1 }
-            );
-          } catch (colorErr) {
-            console.warn("Không thể set màu cho: " + ev.subject + " | " + colorErr.message);
+              Calendar.Events.patch(
+                { eventLabelId: labelId },
+                calendarId,
+                eventId,
+                { eventLabelVersion: 1 }
+              );
+            } catch (colorErr) {
+              console.error("Không thể set màu cho: " + ev.subject + " | " + colorErr.message + "\n" + (colorErr.stack || ""));
+            }
           }
         }
 
