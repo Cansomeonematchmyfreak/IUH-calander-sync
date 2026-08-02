@@ -15,10 +15,106 @@
     input[type="text"], input[type="password"] { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; outline: none; font-size: 14px; }
     input:focus, select:focus { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26,115,232,0.15); }
 
-    /* Thiết kế khu vực custom màu sắc */
+    /* ============================================================
+       COLOR PICKER WIDGET
+       ============================================================ */
     .color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px; }
     .color-item { display: flex; flex-direction: column; gap: 4px; }
-    select { padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; background: white; cursor: pointer; outline: none; margin-top: 6px; width: 100%; transition: all 0.3s ease; }
+    .color-item > label { margin-top: 0; }
+
+    /* Trigger button */
+    .color-picker-trigger {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px;
+      cursor: pointer; background: #f9f9f9; margin-top: 6px;
+      transition: border-color 0.2s, box-shadow 0.2s; user-select: none;
+    }
+    .color-picker-trigger:hover { border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.15); }
+    .color-swatch {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid rgba(0,0,0,0.15); flex-shrink: 0;
+      transition: transform 0.15s;
+    }
+    .color-picker-trigger:hover .color-swatch { transform: scale(1.1); }
+    .color-hex-display { font-size: 13px; font-weight: 600; color: #333; font-family: monospace; }
+
+    /* Floating picker panel */
+    .color-picker-panel {
+      position: fixed; z-index: 99999;
+      background: white; border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.1);
+      padding: 16px; width: 280px;
+      display: none;
+      animation: panelIn 0.15s ease;
+    }
+    @keyframes panelIn {
+      from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .color-picker-panel.visible { display: block; }
+
+    /* Preset grid */
+    .preset-label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .preset-colors {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      gap: 5px; margin-bottom: 14px;
+    }
+    .preset-dot {
+      width: 28px; height: 28px; border-radius: 50%;
+      cursor: pointer; border: 2px solid transparent;
+      transition: transform 0.12s, border-color 0.12s;
+      position: relative;
+    }
+    .preset-dot:hover { transform: scale(1.18); border-color: rgba(0,0,0,0.25); }
+    .preset-dot.selected::after {
+      content: '✓'; position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: bold; color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    /* HSV canvas */
+    .hsv-area { margin-bottom: 12px; }
+    .sv-canvas {
+      width: 100%; height: 150px; border-radius: 8px;
+      cursor: crosshair; display: block;
+      border: 1px solid #eee;
+    }
+    .hue-canvas {
+      width: 100%; height: 18px; border-radius: 9px;
+      cursor: pointer; display: block;
+      border: 1px solid #eee;
+    }
+    .sv-thumb {
+      position: absolute; width: 14px; height: 14px;
+      border-radius: 50%; border: 2px solid white;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+      pointer-events: none; transform: translate(-50%, -50%);
+    }
+    .hue-thumb {
+      position: absolute; width: 18px; height: 18px;
+      border-radius: 50%; border: 2px solid white;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+      pointer-events: none; transform: translate(-50%, -50%);
+      top: 50%;
+    }
+
+    /* Hex input row */
+    .hex-row { display: flex; align-items: center; gap: 8px; }
+    .hex-preview-box {
+      width: 32px; height: 32px; border-radius: 6px;
+      border: 1px solid #ddd; flex-shrink: 0;
+    }
+    .hex-input {
+      flex: 1; padding: 7px 10px; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 13px; font-family: monospace;
+      font-weight: 600; outline: none; color: #333;
+    }
+    .hex-input:focus { border-color: #1a73e8; }
+    .toggle-hsv-btn {
+      font-size: 11px; color: #1a73e8; cursor: pointer;
+      text-decoration: underline; margin-bottom: 8px; display: inline-block;
+    }
 
     /* Thiết kế hàng Toggle switch đồng bộ */
     .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; background: #f8f9fa; padding: 12px; border-radius: 8px; }
@@ -76,87 +172,38 @@
     <div class="color-grid">
       <div class="color-item">
         <label>Môn Lý thuyết:</label>
-        <select id="color-ly-thuyet">
-          <option value="1" selected>🟣 Lavender (Tím nhạt)</option>
-          <option value="2">🌿 Sage (Xanh lá nhạt)</option>
-          <option value="3">🍇 Grape (Tím đậm)</option>
-          <option value="4">🌸 Flamingo (Hồng)</option>
-          <option value="5">🟡 Banana (Vàng)</option>
-          <option value="6">🟠 Tangerine (Cam)</option>
-          <option value="7">🩵 Peacock (Xanh lơ)</option>
-          <option value="8">🔘 Graphite (Xám)</option>
-          <option value="9">🔵 Blueberry (Xanh dương)</option>
-          <option value="10">🌲 Basil (Xanh lá đậm)</option>
-          <option value="11">🔴 Tomato (Đỏ)</option>
-        </select>
+        <div class="color-picker-trigger" id="trigger-ly-thuyet" data-key="ly-thuyet">
+          <div class="color-swatch" id="swatch-ly-thuyet"></div>
+          <span class="color-hex-display" id="hexdisplay-ly-thuyet">#616161</span>
+        </div>
       </div>
 
       <div class="color-item">
         <label>Môn Thực hành:</label>
-        <select id="color-thuc-hanh">
-          <option value="1">🟣 Lavender (Tím nhạt)</option>
-          <option value="2" selected>🌿 Sage (Xanh lá nhạt)</option>
-          <option value="3">🍇 Grape (Tím đậm)</option>
-          <option value="4">🌸 Flamingo (Hồng)</option>
-          <option value="5">🟡 Banana (Vàng)</option>
-          <option value="6">🟠 Tangerine (Cam)</option>
-          <option value="7">🩵 Peacock (Xanh lơ)</option>
-          <option value="8">🔘 Graphite (Xám)</option>
-          <option value="9">🔵 Blueberry (Xanh dương)</option>
-          <option value="10">🌲 Basil (Xanh lá đậm)</option>
-          <option value="11">🔴 Tomato (Đỏ)</option>
-        </select>
+        <div class="color-picker-trigger" id="trigger-thuc-hanh" data-key="thuc-hanh">
+          <div class="color-swatch" id="swatch-thuc-hanh"></div>
+          <span class="color-hex-display" id="hexdisplay-thuc-hanh">#33b679</span>
+        </div>
       </div>
 
       <div class="color-item">
         <label>Môn Trực tuyến:</label>
-        <select id="color-truc-tuyen">
-          <option value="1">🟣 Lavender (Tím nhạt)</option>
-          <option value="2">🌿 Sage (Xanh lá nhạt)</option>
-          <option value="3">🍇 Grape (Tím đậm)</option>
-          <option value="4">🌸 Flamingo (Hồng)</option>
-          <option value="5">🟡 Banana (Vàng)</option>
-          <option value="6">🟠 Tangerine (Cam)</option>
-          <option value="7" selected>🩵 Peacock (Xanh lơ)</option>
-          <option value="8">🔘 Graphite (Xám)</option>
-          <option value="9">🔵 Blueberry (Xanh dương)</option>
-          <option value="10">🌲 Basil (Xanh lá đậm)</option>
-          <option value="11">🔴 Tomato (Đỏ)</option>
-        </select>
+        <div class="color-picker-trigger" id="trigger-truc-tuyen" data-key="truc-tuyen">
+          <div class="color-swatch" id="swatch-truc-tuyen"></div>
+          <span class="color-hex-display" id="hexdisplay-truc-tuyen">#039be5</span>
+        </div>
       </div>
 
       <div class="color-item">
         <label>Lịch Thi:</label>
-        <select id="color-thi">
-          <option value="1">🟣 Lavender (Tím nhạt)</option>
-          <option value="2">🌿 Sage (Xanh lá nhạt)</option>
-          <option value="3">🍇 Grape (Tím đậm)</option>
-          <option value="4">🌸 Flamingo (Hồng)</option>
-          <option value="5">🟡 Banana (Vàng)</option>
-          <option value="6">🟠 Tangerine (Cam)</option>
-          <option value="7">🩵 Peacock (Xanh lơ)</option>
-          <option value="8">🔘 Graphite (Xám)</option>
-          <option value="9">🔵 Blueberry (Xanh dương)</option>
-          <option value="10">🌲 Basil (Xanh lá đậm)</option>
-          <option value="11" selected>🔴 Tomato (Đỏ)</option>
-        </select>
+        <div class="color-picker-trigger" id="trigger-thi" data-key="thi">
+          <div class="color-swatch" id="swatch-thi"></div>
+          <span class="color-hex-display" id="hexdisplay-thi">#f6bf26</span>
+        </div>
       </div>
 
       <div class="color-item" style="grid-column: span 2;">
         <label>Lịch Tạm ngưng:</label>
-        <select id="color-tam-ngung">
-          <option value="1">🟣 Lavender (Tím nhạt)</option>
-          <option value="2">🌿 Sage (Xanh lá nhạt)</option>
-          <option value="3">🍇 Grape (Tím đậm)</option>
-          <option value="4">🌸 Flamingo (Hồng)</option>
-          <option value="5">🟡 Banana (Vàng)</option>
-          <option value="6">🟠 Tangerine (Cam)</option>
-          <option value="7">🩵 Peacock (Xanh lơ)</option>
-          <option value="8" selected>🔘 Graphite (Xám)</option>
-          <option value="9">🔵 Blueberry (Xanh dương)</option>
-          <option value="10">🌲 Basil (Xanh lá đậm)</option>
-          <option value="11">🔴 Tomato (Đỏ)</option>
-        </select>
       </div>
     </div>
   </div>
@@ -218,5 +265,26 @@
 </div>
 
 <script src="options.js"></script>
+
+<!-- Floating Color Picker Panel (shared, positioned by JS) -->
+<div class="color-picker-panel" id="color-picker-panel">
+  <div class="preset-label">Thư viện màu Google Calendar</div>
+  <div class="preset-colors" id="preset-colors"></div>
+  <span class="toggle-hsv-btn" id="toggle-hsv-btn">▼ Mở bảng màu tuỳ chỉnh</span>
+  <div class="hsv-area" id="hsv-area" style="display:none;">
+    <div style="position:relative;">
+      <canvas class="sv-canvas" id="sv-canvas" width="248" height="150"></canvas>
+      <div class="sv-thumb" id="sv-thumb" style="position:absolute;"></div>
+    </div>
+    <div style="position:relative; margin-top:8px;">
+      <canvas class="hue-canvas" id="hue-canvas" width="248" height="18"></canvas>
+      <div class="hue-thumb" id="hue-thumb" style="position:absolute;"></div>
+    </div>
+  </div>
+  <div class="hex-row" style="margin-top:10px;">
+    <div class="hex-preview-box" id="hex-preview-box"></div>
+    <input type="text" class="hex-input" id="hex-input" maxlength="7" placeholder="#rrggbb">
+  </div>
+</div>
 </body>
 </html>

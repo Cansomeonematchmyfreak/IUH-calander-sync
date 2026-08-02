@@ -5,6 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IUH Alternative Dashboard</title>
     <link rel="stylesheet" href="portal.css">
+    <style>
+    /* Portal Color Picker Widget */
+    .portal-color-trigger {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px;
+        cursor: pointer; background: var(--bg-dark); margin-top: 6px;
+        transition: border-color 0.2s, box-shadow 0.2s; user-select: none;
+    }
+    .portal-color-trigger:hover { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99,179,237,0.15); }
+    .portal-color-swatch {
+        width: 26px; height: 26px; border-radius: 50%;
+        border: 2px solid rgba(255,255,255,0.2); flex-shrink: 0;
+        transition: transform 0.15s;
+    }
+    .portal-color-trigger:hover .portal-color-swatch { transform: scale(1.1); }
+    .portal-hex-display { font-size: 13px; font-weight: 600; color: var(--text-main); font-family: monospace; }
+
+    /* Floating picker panel */
+    #portal-color-panel {
+        position: fixed; z-index: 99999;
+        background: var(--bg-card); border-radius: 14px;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        padding: 16px; width: 280px; display: none;
+        animation: pcPanelIn 0.15s ease;
+    }
+    @keyframes pcPanelIn {
+        from { opacity:0; transform: translateY(-6px) scale(0.97); }
+        to   { opacity:1; transform: translateY(0) scale(1); }
+    }
+    #portal-color-panel.visible { display: block; }
+    .pc-preset-label { font-size:11px; font-weight:700; color: var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
+    .pc-preset-grid { display: grid; grid-template-columns: repeat(7,1fr); gap:5px; margin-bottom:12px; }
+    .pc-dot {
+        width:28px; height:28px; border-radius:50%; cursor:pointer;
+        border: 2px solid transparent; transition: transform 0.12s, border-color 0.12s;
+        position:relative;
+    }
+    .pc-dot:hover { transform: scale(1.18); border-color: rgba(255,255,255,0.4); }
+    .pc-dot.selected::after {
+        content:'\2713'; position:absolute; inset:0;
+        display:flex; align-items:center; justify-content:center;
+        font-size:13px; font-weight:bold; color:white;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    .pc-toggle-hsv { font-size:11px; color: var(--primary); cursor:pointer; text-decoration:underline; margin-bottom:8px; display:inline-block; }
+    .pc-sv-canvas { width:100%; height:140px; border-radius:8px; cursor:crosshair; display:block; border:1px solid var(--border-color); }
+    .pc-hue-canvas { width:100%; height:18px; border-radius:9px; cursor:pointer; display:block; border:1px solid var(--border-color); margin-top:8px; }
+    .pc-sv-thumb, .pc-hue-thumb {
+        position:absolute; border-radius:50%; border:2px solid white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.5); pointer-events:none; transform:translate(-50%,-50%);
+    }
+    .pc-sv-thumb { width:14px; height:14px; }
+    .pc-hue-thumb { width:18px; height:18px; top:50%; }
+    .pc-hex-row { display:flex; align-items:center; gap:8px; margin-top:10px; }
+    .pc-hex-preview { width:32px; height:32px; border-radius:6px; border:1px solid var(--border-color); flex-shrink:0; }
+    .pc-hex-input {
+        flex:1; padding:7px 10px; border:1px solid var(--border-color);
+        border-radius:6px; font-size:13px; font-family:monospace; font-weight:600;
+        background: var(--bg-dark); color: var(--text-main); outline:none;
+    }
+    .pc-hex-input:focus { border-color: var(--primary); }
+    </style>
 </head>
 <body>
 
@@ -168,28 +231,43 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">
                     <div>
                         <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-muted);">🏫 Lịch học trực tiếp:</label>
-                        <select id="setting-color-direct" class="color-select-input" style="width: 100%; padding: 12px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 8px; cursor: pointer;"></select>
+                        <div class="portal-color-trigger" id="setting-color-direct" data-hex="#616161">
+                            <div class="portal-color-swatch" style="background:#616161;"></div>
+                            <span class="portal-hex-display">#616161</span>
+                        </div>
                     </div>
                     <div>
                         <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-muted);">🌐 Lịch học online:</label>
-                        <select id="setting-color-online" class="color-select-input" style="width: 100%; padding: 12px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 8px; cursor: pointer;"></select>
+                        <div class="portal-color-trigger" id="setting-color-online" data-hex="#039be5">
+                            <div class="portal-color-swatch" style="background:#039be5;"></div>
+                            <span class="portal-hex-display">#039be5</span>
+                        </div>
                     </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px;">
                     <div>
                         <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-muted);">🔬 Lịch thực hành:</label>
-                        <select id="setting-color-practice" class="color-select-input" style="width: 100%; padding: 12px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 8px; cursor: pointer;"></select>
+                        <div class="portal-color-trigger" id="setting-color-practice" data-hex="#33b679">
+                            <div class="portal-color-swatch" style="background:#33b679;"></div>
+                            <span class="portal-hex-display">#33b679</span>
+                        </div>
                     </div>
                     <div>
                         <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-muted);">⚠️ Lịch tạm hoãn / Nghỉ học:</label>
-                        <select id="setting-color-postponed" class="color-select-input" style="width: 100%; padding: 12px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 8px; cursor: pointer;"></select>
+                        <div class="portal-color-trigger" id="setting-color-postponed" data-hex="#d50000">
+                            <div class="portal-color-swatch" style="background:#d50000;"></div>
+                            <span class="portal-hex-display">#d50000</span>
+                        </div>
                     </div>
                 </div>
 
                 <div style="width: 100%;">
                     <label style="display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-muted);">📝 Lịch thi học phần:</label>
-                    <select id="setting-color-exam" class="color-select-input" style="width: 100%; padding: 12px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 8px; cursor: pointer;"></select>
+                    <div class="portal-color-trigger" id="setting-color-exam" data-hex="#f6bf26">
+                        <div class="portal-color-swatch" style="background:#f6bf26;"></div>
+                        <span class="portal-hex-display">#f6bf26</span>
+                    </div>
                 </div>
             </div>
 
@@ -223,6 +301,27 @@
 
 <script src="grade-scraper.js"></script>
 <script src="portal.js"></script>
+
+<!-- Shared Portal Color Picker Panel -->
+<div id="portal-color-panel">
+    <div class="pc-preset-label">Thư viện màu Google Calendar</div>
+    <div class="pc-preset-grid" id="pc-preset-grid"></div>
+    <span class="pc-toggle-hsv" id="pc-toggle-hsv">▼ Mở bảng màu tuỳ chỉnh</span>
+    <div id="pc-hsv-area" style="display:none;">
+        <div style="position:relative;">
+            <canvas class="pc-sv-canvas" id="pc-sv-canvas" width="248" height="140"></canvas>
+            <div class="pc-sv-thumb" id="pc-sv-thumb" style="position:absolute;"></div>
+        </div>
+        <div style="position:relative;">
+            <canvas class="pc-hue-canvas" id="pc-hue-canvas" width="248" height="18"></canvas>
+            <div class="pc-hue-thumb" id="pc-hue-thumb" style="position:absolute;"></div>
+        </div>
+    </div>
+    <div class="pc-hex-row">
+        <div class="pc-hex-preview" id="pc-hex-preview"></div>
+        <input type="text" class="pc-hex-input" id="pc-hex-input" maxlength="7" placeholder="#rrggbb">
+    </div>
+</div>
 
 </body>
 </html>
